@@ -1,0 +1,157 @@
+:root {
+  --bg: #1B2440;
+  --surface: #243055;
+  --surface-2: #2E3B66;
+  --text: #F2F4FA;
+  --muted: #A9B1C7;
+  --accent: #6EC6FF;
+  --tabbar-h: 64px;
+  font-family: 'Noto Sans KR', system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body { background: var(--bg); }
+button { font: inherit; color: inherit; cursor: pointer; }
+p { margin: 0; }
+
+.app {
+  height: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.screen { flex: 1; position: relative; min-height: 0; }
+
+/* 하단 탭 */
+.tabbar {
+  height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: var(--bg);
+  border-top: 1px solid var(--surface-2);
+}
+.tab {
+  background: none;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.tab-icon { font-size: 18px; line-height: 1; }
+.tab.active { color: var(--accent); font-weight: 700; }
+
+.placeholder {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--muted);
+  padding: 16px;
+  text-align: center;
+}
+.placeholder-title { color: var(--text); font-size: 18px; font-weight: 700; }
+
+/* 지도 화면 */
+.map-screen, .map { position: absolute; inset: 0; }
+.map { background: var(--bg); }
+.leaflet-container { font-family: inherit; }
+/* OSM 기본 타일을 뒤집어 다크 톤으로 (배경 #1B2440에 맞춤) */
+.tiles-dark { filter: invert(1) hue-rotate(200deg) brightness(0.8) contrast(0.9) saturate(0.35); }
+
+.map-top {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  z-index: 500;
+  padding: 12px 16px 8px;
+  background: linear-gradient(var(--bg) 60%, transparent);
+  pointer-events: none;
+}
+.map-top > * { pointer-events: auto; }
+.brand { margin: 0 0 8px; font-size: 18px; font-weight: 700; }
+.chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--surface-2);
+  background: rgba(27, 36, 64, 0.85);
+  color: var(--muted);
+  font-size: 13px;
+}
+.chip.on { background: var(--surface-2); color: var(--text); border-color: var(--muted); }
+.chip:not(.on) .dot { opacity: 0.35; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; box-shadow: 0 0 0 1px var(--bg); }
+
+.loading {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 500;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 14px;
+}
+
+.legend, .sheet {
+  position: absolute;
+  left: 12px; right: 12px; bottom: 12px;
+  z-index: 500;
+  background: rgba(36, 48, 85, 0.95);
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+.legend-bar { height: 8px; border-radius: 4px; }
+.legend-labels { display: flex; justify-content: space-between; font-size: 12px; margin-top: 4px; }
+.legend-date { margin-top: 6px; font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+.sheet { padding: 16px; }
+.sheet-close {
+  position: absolute;
+  top: 6px; right: 8px;
+  width: 32px; height: 32px;
+  border: 0;
+  background: none;
+  font-size: 22px;
+  color: var(--muted);
+}
+.score-row { display: flex; gap: 12px; align-items: center; padding-right: 24px; }
+.score-badge {
+  flex: none;
+  width: 48px; height: 48px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--bg);
+}
+.score-title { font-size: 16px; font-weight: 700; }
+.muted { color: var(--muted); font-size: 12px; margin-top: 2px; line-height: 1.5; }
+.sheet-sub { margin-top: 12px; font-size: 13px; font-weight: 500; }
+.nearby { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
+.nearby li { display: inline-flex; align-items: center; gap: 6px; }
+
+.leaflet-control-attribution {
+  background: rgba(27, 36, 64, 0.7) !important;
+  color: var(--muted) !important;
+  font-size: 10px;
+}
+.leaflet-control-attribution a { color: var(--muted) !important; }
+.leaflet-bottom { bottom: 0; }
