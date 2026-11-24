@@ -47,6 +47,14 @@ CRS_M   = "EPSG:5179"   # 거리 계산용 좌표계 (미터 단위)
 
 FACILITY_TYPES = ["cctv", "bell", "police", "store"]   # 지도에 띄울 시설
 
+# 인도·횡단보도는 바로 옆 차도와 같은 길이라 차도의 시설 밀도를 같이 씀
+# (보안등 데이터에 큰길 가로등이 없어 인도만 따로 보면 시설 0으로 나오는 문제 보완)
+SHARE_FOOTWAY = {"sidewalk", "crossing"}          # OSM footway=*
+ROAD_TYPES = {"trunk", "trunk_link", "primary", "primary_link", "secondary", "secondary_link",
+              "tertiary", "tertiary_link", "residential", "unclassified", "living_street"}
+SHARE_MAX_DIST = 30   # 인도 중간점에서 이 거리 안의 가장 가까운 차도와 짝지음 (m)
+ox.settings.useful_tags_way = list(dict.fromkeys(list(ox.settings.useful_tags_way) + ["footway"]))
+
 # 범례에 기준일을 보여줄 데이터 (meta.json)
 META_DATASETS = {
     "light": "보안등", "cctv": "CCTV", "shop": "상가",
@@ -75,7 +83,7 @@ def load_network():
     Gp = ox.project_graph(G, to_crs=CRS_M)
     nodes, edges = ox.graph_to_gdfs(Gp)
     print("도로 구간 수:", len(edges), "/ 교차점 수:", len(nodes))
-    return Gp, nodes, edges
+    return Gp, nodes, edges, polygon
 
 
 # ── 시설 지표 (노트북 ④) ─────────────────────────────────────
@@ -95,7 +103,36 @@ def facility_density(edges, key, cfg):
     return total / length * 100
 
 
-# ── 경사도 (노트북 ⑤) ────────────────────────────────────────
+def first_tag(v):
+    return v[0] if isinstance(v, list) else v
+
+
+def share_with_road(edges, raw_ind, polygon):
+    """인도·횡단보도 구간의 시설 밀도 = max(자기 밀도, 옆 차도 밀도). 다른 구간은 그대로
+
+    인도가 따로 그려진 차도(sidewalk=separate)는 OSMnx 보행망에서 빠지므로
+    차도망(drive)을 따로 받아 밀도만 계산해서 비교한다. 경로 그래프는 그대로.
+    """
+    hw = edges["highway"].apply(first_tag)
+    fw = edges["footway"].apply(first_tag) if "footway" in edges else pd.Series(None, index=edges.index)
+    is_share = (hw == "footway") & fw.isin(SHARE_FOOTWAY)
+
+    Gd = ox.project_graph(ox.graph_from_polygon(polygon, network_type="drive"), to_crs=CRS_M)
+    roads = ox.graph_to_gdfs(Gd, nodes=False)
+    roads = roads[roads["highway"].apply(first_tag).isin(ROAD_TYPES)]
+    road_raw = {k: facility_density(roads, k, INDICATORS[k]) for k in ["light", "cctv", "shop"] if k in raw_ind}
+
+    mid = gpd.GeoDataFrame(geometry=edges.loc[is_share].geometry.interpolate(0.5, normalized=True), crs=CRS_M)
+    pair = gpd.sjoin_nearest(mid, roads[["geometry"]], max_distance=SHARE_MAX_DIST)
+    pair = pair[~pair.index.duplicated()]               # 같은 거리 차도가 여럿이면 하나만
+    road_idx = pd.MultiIndex.from_frame(pair[["u_right", "v_right", "key_right"]])
+    for k, rv in road_raw.items():
+        road_val = rv.loc[road_idx].values
+        raw_ind[k].loc[pair.index] = np.maximum(raw_ind[k].loc[pair.index].values, road_val)
+    print(f"[인도·횡단보도] {is_share.sum()}구간 중 {len(pair)}구간이 {SHARE_MAX_DIST}m 안 차도와 짝지어짐")
+
+
+# ── 경사도 (노트북 ⑤)────────────────────────────────────────
 def slope_grade(nodes, edges):
     dem_path = CLEAN / INDICATORS["slope"]["file"]
     if not dem_path.exists():
@@ -211,7 +248,7 @@ def save_meta():
 
 
 def main():
-    Gp, nodes, edges = load_network()
+    Gp, nodes, edges, polygon = load_network()
 
     raw_ind = {}
     for key, cfg in INDICATORS.items():
@@ -220,6 +257,7 @@ def main():
         v = facility_density(edges, key, cfg)
         if v is not None:
             raw_ind[key] = v
+    share_with_road(edges, raw_ind, polygon)
     s = slope_grade(nodes, edges)
     if s is not None:
         raw_ind["slope"] = s

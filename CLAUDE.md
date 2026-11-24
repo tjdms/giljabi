@@ -44,6 +44,7 @@ src/                 앱 코드
 - 도로망: OSMnx 보행 네트워크, 교차로~교차로 구간, 거리 계산은 EPSG:5179
 - 지표·가중치(이정현 외 2024 재조정): 보안등 0.414, CCTV 0.356, 상가 0.168, 경사도 0.062(가파를수록 위험)
 - 밀도 = 반경 내 시설 수 ÷ 구간 길이 × 100 (반경: 보안등 25m, CCTV·상가 50m, 최소 길이 20m)
+- 인도(footway=sidewalk)·횡단보도(crossing) 구간은 30m 안 가장 가까운 차도 구간과 짝지어 지표별로 max(자기 밀도, 차도 밀도)를 씀. 인도가 따로 그려진 차도는 보행망에 없어서 차도망(drive)을 따로 받아 밀도만 계산 (경로 그래프는 보행망 그대로)
 - 정규화: 상위 5% 잘라서 min-max → 가중합 = safety(0~1) → 5분위 등급
 - risk = 1 − safety, cost = length × (1 + risk)
 - 출력 `public/data/edges_scored.geojson`: 구간 LineString, 속성 u, v, length, safety, score(=safety×100 반올림), grade(1~5), cost
