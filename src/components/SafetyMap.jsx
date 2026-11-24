@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import L from 'leaflet'
 import { CircleMarker, GeoJSON, MapContainer, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import { pointToLineDistance } from '@turf/turf'
-import { FACILITY_TYPES, baseDates, loadEdges, loadFacilities } from '../data.js'
+import { FACILITY_TYPES, loadEdges, loadFacilities, loadMeta } from '../data.js'
 import { GRADIENT_CSS, safetyColor } from '../colors.js'
 
 const CENTER = [35.1375, 129.0995]   // 경성대·부경대역 부근
@@ -24,6 +24,7 @@ function ClearOnMapClick({ onClear }) {
 export default function SafetyMap() {
   const [edges, setEdges] = useState(null)
   const [facilities, setFacilities] = useState(null)
+  const [meta, setMeta] = useState(null)
   const [error, setError] = useState(null)
   const [visible, setVisible] = useState({ cctv: false, bell: true, police: true, store: false })
   const [selected, setSelected] = useState(null)
@@ -33,9 +34,9 @@ export default function SafetyMap() {
     Promise.all([loadEdges(), loadFacilities()])
       .then(([e, f]) => { setEdges(e); setFacilities(f) })
       .catch((err) => setError(err.message))
+    // 기준일은 없어도 지도는 보이게
+    loadMeta().then(setMeta).catch(() => setMeta(null))
   }, [])
-
-  const dates = useMemo(() => (facilities ? baseDates(facilities) : {}), [facilities])
 
   const nearby = useMemo(() => {
     if (!selected || !facilities) return []
@@ -66,10 +67,10 @@ export default function SafetyMap() {
     <div className="map-screen">
       <MapContainer center={CENTER} zoom={15} zoomControl={false} preferCanvas className="map">
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          subdomains="abcd"
-          maxZoom={20}
+          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          className="tiles-dark"
+          maxZoom={19}
         />
         <FitToData edges={edges} />
         <ClearOnMapClick onClear={() => setSelected(null)} />
@@ -158,9 +159,12 @@ export default function SafetyMap() {
         <section className="legend" aria-label="범례">
           <div className="legend-bar" style={{ background: GRADIENT_CSS }} />
           <div className="legend-labels"><span>위험</span><span>안전</span></div>
-          <p className="legend-date">
-            기준일 {Object.entries(dates).map(([type, d]) => `${FACILITY_TYPES[type]?.label ?? type} ${d}`).join(' · ')} · 도로망 OpenStreetMap
-          </p>
+          {meta && (
+            <p className="legend-date">
+              기준일 {Object.values(meta.datasets).map((d) => `${d.label} ${d.base_date}`).join(' · ')}
+              {' · '}{meta.road.label} {meta.road.source} ({meta.road.downloaded} 받음)
+            </p>
+          )}
         </section>
       )}
     </div>

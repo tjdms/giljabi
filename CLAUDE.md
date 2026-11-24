@@ -11,7 +11,7 @@
 
 ## 기술 스택
 - 앱: Vite + React + Leaflet(react-leaflet) + Turf.js, 서버 없이 정적 사이트
-- 지도 타일: CARTO dark (출처 표기 필수)
+- 지도 타일: OpenStreetMap 기본 타일 + CSS 필터로 다크 톤 (키 불필요, 출처 "© OpenStreetMap contributors" 표기 필수). CARTO dark는 API 키가 필요해져서 안 씀
 - 경로 계산: 브라우저에서 직접 (edges_scored.geojson의 u, v로 그래프 만들고 다익스트라)
 - 점수 계산: Python (osmnx, geopandas, rasterio) — `scripts/`
 - 배포: Vercel

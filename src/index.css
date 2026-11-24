@@ -67,6 +67,8 @@ p { margin: 0; }
 .map-screen, .map { position: absolute; inset: 0; }
 .map { background: var(--bg); }
 .leaflet-container { font-family: inherit; }
+/* OSM 기본 타일을 뒤집어 다크 톤으로 (배경 #1B2440에 맞춤) */
+.tiles-dark { filter: invert(1) hue-rotate(200deg) brightness(0.8) contrast(0.9) saturate(0.35); }
 
 .map-top {
   position: absolute;
