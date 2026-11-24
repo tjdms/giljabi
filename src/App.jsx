@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import SafetyMap from './components/SafetyMap.jsx'
+import RouteCompare from './components/RouteCompare.jsx'
 
 const TABS = [
   { id: 'map', label: '안전도 지도', icon: '◎' },
@@ -8,13 +9,18 @@ const TABS = [
 ]
 
 export default function App() {
-  const [tab, setTab] = useState('map')
+  // ?tab=route 로 바로 열기 (시연·공유용)
+  const [tab, setTab] = useState(() => {
+    const t = new URLSearchParams(window.location.search).get('tab')
+    return TABS.some((x) => x.id === t) ? t : 'map'
+  })
 
   return (
     <div className="app">
       <main className="screen">
         {tab === 'map' && <SafetyMap />}
-        {tab !== 'map' && (
+        {tab === 'route' && <RouteCompare />}
+        {tab === 'blind' && (
           <div className="placeholder">
             <p className="placeholder-title">{TABS.find((t) => t.id === tab).label}</p>
             <p>준비 중이에요</p>
