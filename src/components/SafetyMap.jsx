@@ -3,6 +3,7 @@ import { nearestPointOnLine, point, pointToLineDistance } from '@turf/turf'
 import { FACILITY_TYPES, loadEdges, loadFacilities, loadMeta } from '../data.js'
 import { GRADIENT_CSS, safetyColor } from '../colors.js'
 import { AUTH_FAILURE_EVENT, createMap, loadNaverMaps } from '../lib/naver.js'
+import { createSegmentLayer } from '../lib/segmentLayer.js'
 
 const CENTER = [35.1375, 129.0995]   // 경성대·부경대역 부근
 const NEARBY_M = 50                  // 구간 주변 시설로 보여줄 거리
@@ -23,7 +24,7 @@ export default function SafetyMap() {
   const elRef = useRef(null)
   const mapRef = useRef(null)
   const markersRef = useRef({})
-  const highlightRef = useRef(null)
+  const layerRef = useRef(null)
   const [maps, setMaps] = useState(null)
   const [edges, setEdges] = useState(null)
   const [facilities, setFacilities] = useState(null)
@@ -35,10 +36,12 @@ export default function SafetyMap() {
   // 지도 + 데이터 불러오기
   useEffect(() => {
     let map
+    let cancelled = false   // 스크립트 로드 전에 정리되면 지도를 만들지 않음 (StrictMode 이중 실행 때 지도 두 개 생김 방지)
     const onAuthFail = () => setError('네이버 지도 인증에 실패했어요. 클라이언트 ID와 콘솔에 등록한 Web 서비스 URL을 확인해 주세요')
     window.addEventListener(AUTH_FAILURE_EVENT, onAuthFail)
     loadNaverMaps()
       .then((m) => {
+        if (cancelled) return
         map = createMap(m, elRef.current, {
           center: new m.LatLng(...CENTER),
           zoom: 15,
@@ -56,6 +59,7 @@ export default function SafetyMap() {
     // 기준일은 없어도 지도는 보이게
     loadMeta().then(setMeta).catch(() => setMeta(null))
     return () => {
+      cancelled = true
       window.removeEventListener(AUTH_FAILURE_EVENT, onAuthFail)
       for (const list of Object.values(markersRef.current)) for (const m of list) m.setMap(null)
       markersRef.current = {}
@@ -64,28 +68,24 @@ export default function SafetyMap() {
     }
   }, [])
 
-  // 구간 그리기 (Data 레이어) + 탭으로 구간 고르기
+  // 구간 그리기 (캔버스 오버레이 한 장) + 탭으로 구간 고르기
   useEffect(() => {
     const map = mapRef.current
     if (!maps || !map || !edges) return
-    const t0 = performance.now()
-    const added = map.data.addGeoJson(edges)
-    map.data.setStyle((f) => ({
-      strokeColor: safetyColor(f.getProperty('safety')),
-      strokeWeight: 3,
-      strokeOpacity: 0.9,
-      clickable: false,
-    }))
-    const ms = Math.round(performance.now() - t0)
-    window.__giljabiPerf = { segments: edges.features.length, addGeoJsonMs: ms }
-    console.info(`[성능] 구간 ${edges.features.length}개 그리기 ${ms}ms`)
+    const layer = createSegmentLayer(maps, {
+      features: edges.features,
+      color: (f) => safetyColor(f.properties.safety),
+    })
+    layer.setMap(map)
+    layerRef.current = layer
 
     const [x0, y0, x1, y1] = bbox(edges)
     map.fitBounds(new maps.LatLngBounds(new maps.LatLng(y0, x0), new maps.LatLng(y1, x1)))
 
     const proj = map.getProjection()
-    const listener = maps.Event.addListener(map, 'click', (e) => {
-      const tap = point([e.coord.x, e.coord.y])
+    const pickAt = (pageX, pageY) => {
+      const coord = proj.fromPageXYToCoord(new maps.Point(pageX, pageY))
+      const tap = point([coord.x, coord.y])
       let best = null
       let bestD = Infinity
       for (const f of edges.features) {
@@ -94,33 +94,34 @@ export default function SafetyMap() {
       }
       if (best) {
         const [x, y] = nearestPointOnLine(best, tap).geometry.coordinates
-        const a = proj.fromCoordToOffset(e.coord)
+        const a = proj.fromCoordToOffset(coord)
         const b = proj.fromCoordToOffset(new maps.LatLng(y, x))
         if (Math.hypot(a.x - b.x, a.y - b.y) > TAP_PX) best = null
       }
       setSelected(best)
-    })
+    }
+    // GL 지도는 click 이벤트를 주지 않아서, 눌렀다 뗀 위치가 거의 같으면(끌기가 아니면) 탭으로 봄
+    const el = elRef.current
+    let down = null
+    const onDown = (e) => { down = e.isPrimary ? { x: e.pageX, y: e.pageY, t: e.timeStamp } : null }
+    const onUp = (e) => {
+      if (down && Math.hypot(e.pageX - down.x, e.pageY - down.y) < 6 && e.timeStamp - down.t < 600) pickAt(e.pageX, e.pageY)
+      down = null
+    }
+    el.addEventListener('pointerdown', onDown)
+    el.addEventListener('pointerup', onUp)
     return () => {
-      maps.Event.removeListener(listener)
-      for (const f of added ?? []) map.data.removeFeature(f)
+      el.removeEventListener('pointerdown', onDown)
+      el.removeEventListener('pointerup', onUp)
+      layer.setMap(null)
+      layerRef.current = null
     }
   }, [maps, edges])
 
   // 고른 구간 강조
   useEffect(() => {
-    highlightRef.current?.setMap(null)
-    highlightRef.current = null
-    if (!maps || !mapRef.current || !selected) return
-    highlightRef.current = new maps.Polyline({
-      map: mapRef.current,
-      path: selected.geometry.coordinates.map(([x, y]) => new maps.LatLng(y, x)),
-      strokeColor: '#FFFFFF',
-      strokeWeight: 7,
-      strokeOpacity: 0.9,
-      clickable: false,
-      zIndex: 100,
-    })
-  }, [maps, selected])
+    layerRef.current?.setSelected(selected)
+  }, [selected])
 
   // 시설 마커 켜고 끄기
   useEffect(() => {
@@ -171,7 +172,10 @@ export default function SafetyMap() {
 
   return (
     <div className="map-screen">
-      <div ref={elRef} className="map" />
+      {/* 네이버 지도가 컨테이너에 position:relative를 넣어서, 바깥 칸으로 크기를 잡고 안쪽에 지도를 붙임 */}
+      <div className="map">
+        <div ref={elRef} className="map-canvas" />
+      </div>
 
       <header className="map-top">
         <h1 className="brand">길잡이들</h1>
