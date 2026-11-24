@@ -1,0 +1,39 @@
+import { useState } from 'react'
+import SafetyMap from './components/SafetyMap.jsx'
+
+const TABS = [
+  { id: 'map', label: '안전도 지도', icon: '◎' },
+  { id: 'route', label: '경로', icon: '↗' },
+  { id: 'blind', label: '사각지대', icon: '◐' },
+]
+
+export default function App() {
+  const [tab, setTab] = useState('map')
+
+  return (
+    <div className="app">
+      <main className="screen">
+        {tab === 'map' && <SafetyMap />}
+        {tab !== 'map' && (
+          <div className="placeholder">
+            <p className="placeholder-title">{TABS.find((t) => t.id === tab).label}</p>
+            <p>준비 중이에요</p>
+          </div>
+        )}
+      </main>
+      <nav className="tabbar">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            className={`tab ${tab === t.id ? 'active' : ''}`}
+            onClick={() => setTab(t.id)}
+            aria-current={tab === t.id ? 'page' : undefined}
+          >
+            <span className="tab-icon" aria-hidden>{t.icon}</span>
+            {t.label}
+          </button>
+        ))}
+      </nav>
+    </div>
+  )
+}
