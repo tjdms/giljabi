@@ -66,9 +66,6 @@ p { margin: 0; }
 /* 지도 화면 */
 .map-screen, .map { position: absolute; inset: 0; }
 .map { background: var(--bg); }
-.leaflet-container { font-family: inherit; }
-/* OSM 기본 타일을 뒤집어 다크 톤으로 (배경 #1B2440에 맞춤) */
-.tiles-dark { filter: invert(1) hue-rotate(200deg) brightness(0.8) contrast(0.9) saturate(0.35); }
 
 .map-top {
   position: absolute;
@@ -148,10 +145,6 @@ p { margin: 0; }
 .nearby { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
 .nearby li { display: inline-flex; align-items: center; gap: 6px; }
 
-.leaflet-control-attribution {
-  background: rgba(27, 36, 64, 0.7) !important;
-  color: var(--muted) !important;
-  font-size: 10px;
-}
-.leaflet-control-attribution a { color: var(--muted) !important; }
-.leaflet-bottom { bottom: 0; }
+/* 네이버 지도 시설 마커 */
+.fac-dot { display: block; border-radius: 50%; box-shadow: 0 0 0 1px var(--bg); }
+.loading.error { max-width: calc(100% - 32px); line-height: 1.5; text-align: center; }

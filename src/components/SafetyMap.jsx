@@ -1,42 +1,157 @@
-import { useEffect, useMemo, useState } from 'react'
-import L from 'leaflet'
-import { CircleMarker, GeoJSON, MapContainer, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
-import { pointToLineDistance } from '@turf/turf'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { nearestPointOnLine, point, pointToLineDistance } from '@turf/turf'
 import { FACILITY_TYPES, loadEdges, loadFacilities, loadMeta } from '../data.js'
 import { GRADIENT_CSS, safetyColor } from '../colors.js'
+import { AUTH_FAILURE_EVENT, createMap, loadNaverMaps } from '../lib/naver.js'
 
 const CENTER = [35.1375, 129.0995]   // 경성대·부경대역 부근
 const NEARBY_M = 50                  // 구간 주변 시설로 보여줄 거리
+const TAP_PX = 16                    // 이 픽셀 안에 있는 가장 가까운 구간을 누른 것으로 봄 (손가락 탭용)
 
-function FitToData({ edges }) {
-  const map = useMap()
-  useEffect(() => {
-    if (edges) map.fitBounds(L.geoJSON(edges).getBounds(), { padding: [8, 8] })
-  }, [edges, map])
-  return null
-}
-
-function ClearOnMapClick({ onClear }) {
-  useMapEvents({ click: onClear })
-  return null
+function bbox(geojson) {
+  let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity]
+  for (const f of geojson.features) {
+    for (const [x, y] of f.geometry.coordinates) {
+      if (x < x0) x0 = x; if (y < y0) y0 = y
+      if (x > x1) x1 = x; if (y > y1) y1 = y
+    }
+  }
+  return [x0, y0, x1, y1]
 }
 
 export default function SafetyMap() {
+  const elRef = useRef(null)
+  const mapRef = useRef(null)
+  const markersRef = useRef({})
+  const highlightRef = useRef(null)
+  const [maps, setMaps] = useState(null)
   const [edges, setEdges] = useState(null)
   const [facilities, setFacilities] = useState(null)
   const [meta, setMeta] = useState(null)
   const [error, setError] = useState(null)
   const [visible, setVisible] = useState({ cctv: false, bell: true, police: true, store: false })
   const [selected, setSelected] = useState(null)
-  const renderer = useMemo(() => L.canvas({ tolerance: 8 }), [])
 
+  // 지도 + 데이터 불러오기
   useEffect(() => {
+    let map
+    const onAuthFail = () => setError('네이버 지도 인증에 실패했어요. 클라이언트 ID와 콘솔에 등록한 Web 서비스 URL을 확인해 주세요')
+    window.addEventListener(AUTH_FAILURE_EVENT, onAuthFail)
+    loadNaverMaps()
+      .then((m) => {
+        map = createMap(m, elRef.current, {
+          center: new m.LatLng(...CENTER),
+          zoom: 15,
+          zoomControl: false,
+          mapDataControl: false,
+          scaleControl: false,
+        })
+        mapRef.current = map
+        setMaps(m)
+      })
+      .catch((err) => setError(err.message))
     Promise.all([loadEdges(), loadFacilities()])
       .then(([e, f]) => { setEdges(e); setFacilities(f) })
       .catch((err) => setError(err.message))
     // 기준일은 없어도 지도는 보이게
     loadMeta().then(setMeta).catch(() => setMeta(null))
+    return () => {
+      window.removeEventListener(AUTH_FAILURE_EVENT, onAuthFail)
+      for (const list of Object.values(markersRef.current)) for (const m of list) m.setMap(null)
+      markersRef.current = {}
+      map?.destroy()
+      mapRef.current = null
+    }
   }, [])
+
+  // 구간 그리기 (Data 레이어) + 탭으로 구간 고르기
+  useEffect(() => {
+    const map = mapRef.current
+    if (!maps || !map || !edges) return
+    const t0 = performance.now()
+    const added = map.data.addGeoJson(edges)
+    map.data.setStyle((f) => ({
+      strokeColor: safetyColor(f.getProperty('safety')),
+      strokeWeight: 3,
+      strokeOpacity: 0.9,
+      clickable: false,
+    }))
+    const ms = Math.round(performance.now() - t0)
+    window.__giljabiPerf = { segments: edges.features.length, addGeoJsonMs: ms }
+    console.info(`[성능] 구간 ${edges.features.length}개 그리기 ${ms}ms`)
+
+    const [x0, y0, x1, y1] = bbox(edges)
+    map.fitBounds(new maps.LatLngBounds(new maps.LatLng(y0, x0), new maps.LatLng(y1, x1)))
+
+    const proj = map.getProjection()
+    const listener = maps.Event.addListener(map, 'click', (e) => {
+      const tap = point([e.coord.x, e.coord.y])
+      let best = null
+      let bestD = Infinity
+      for (const f of edges.features) {
+        const d = pointToLineDistance(tap, f, { units: 'meters' })
+        if (d < bestD) { bestD = d; best = f }
+      }
+      if (best) {
+        const [x, y] = nearestPointOnLine(best, tap).geometry.coordinates
+        const a = proj.fromCoordToOffset(e.coord)
+        const b = proj.fromCoordToOffset(new maps.LatLng(y, x))
+        if (Math.hypot(a.x - b.x, a.y - b.y) > TAP_PX) best = null
+      }
+      setSelected(best)
+    })
+    return () => {
+      maps.Event.removeListener(listener)
+      for (const f of added ?? []) map.data.removeFeature(f)
+    }
+  }, [maps, edges])
+
+  // 고른 구간 강조
+  useEffect(() => {
+    highlightRef.current?.setMap(null)
+    highlightRef.current = null
+    if (!maps || !mapRef.current || !selected) return
+    highlightRef.current = new maps.Polyline({
+      map: mapRef.current,
+      path: selected.geometry.coordinates.map(([x, y]) => new maps.LatLng(y, x)),
+      strokeColor: '#FFFFFF',
+      strokeWeight: 7,
+      strokeOpacity: 0.9,
+      clickable: false,
+      zIndex: 100,
+    })
+  }, [maps, selected])
+
+  // 시설 마커 켜고 끄기
+  useEffect(() => {
+    const map = mapRef.current
+    if (!maps || !map || !facilities) return
+    for (const [type, t] of Object.entries(FACILITY_TYPES)) {
+      const on = visible[type]
+      const have = markersRef.current[type]
+      if (on && !have) {
+        const size = type === 'police' ? 14 : 9
+        markersRef.current[type] = facilities.features
+          .filter((f) => f.properties.type === type)
+          .map((f) => {
+            const [lon, lat] = f.geometry.coordinates
+            return new maps.Marker({
+              map,
+              position: new maps.LatLng(lat, lon),
+              title: `${t.label}${f.properties.name ? ` · ${f.properties.name}` : ''}`,
+              clickable: false,
+              icon: {
+                content: `<span class="fac-dot" style="width:${size}px;height:${size}px;background:${t.color}"></span>`,
+                anchor: new maps.Point(size / 2, size / 2),
+              },
+            })
+          })
+      } else if (!on && have) {
+        for (const m of have) m.setMap(null)
+        delete markersRef.current[type]
+      }
+    }
+  }, [maps, facilities, visible])
 
   const nearby = useMemo(() => {
     if (!selected || !facilities) return []
@@ -52,65 +167,11 @@ export default function SafetyMap() {
     return c
   }, [nearby])
 
-  const onEachEdge = (feature, layer) => {
-    layer.on('click', (e) => {
-      L.DomEvent.stopPropagation(e)
-      setSelected(feature)
-    })
-  }
-
-  if (error) return <div className="placeholder"><p>{error}</p></div>
-
   const p = selected?.properties
 
   return (
     <div className="map-screen">
-      <MapContainer center={CENTER} zoom={15} zoomControl={false} preferCanvas className="map">
-        <TileLayer
-          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          className="tiles-dark"
-          maxZoom={19}
-        />
-        <FitToData edges={edges} />
-        <ClearOnMapClick onClear={() => setSelected(null)} />
-
-        {edges && (
-          <GeoJSON
-            data={edges}
-            renderer={renderer}
-            style={(f) => ({ color: safetyColor(f.properties.safety), weight: 3, opacity: 0.9 })}
-            onEachFeature={onEachEdge}
-          />
-        )}
-        {selected && (
-          <GeoJSON
-            key={`${p.u}-${p.v}-${p.length}`}
-            data={selected}
-            renderer={renderer}
-            interactive={false}
-            style={{ color: '#FFFFFF', weight: 7, opacity: 0.9 }}
-          />
-        )}
-
-        {facilities?.features
-          .filter((f) => visible[f.properties.type])
-          .map((f) => {
-            const t = FACILITY_TYPES[f.properties.type]
-            const [lon, lat] = f.geometry.coordinates
-            return (
-              <CircleMarker
-                key={f.properties.id}
-                center={[lat, lon]}
-                radius={f.properties.type === 'police' ? 7 : 4}
-                renderer={renderer}
-                pathOptions={{ color: '#1B2440', weight: 1, fillColor: t.color, fillOpacity: 1 }}
-              >
-                <Tooltip>{t.label}{f.properties.name ? ` · ${f.properties.name}` : ''}</Tooltip>
-              </CircleMarker>
-            )
-          })}
-      </MapContainer>
+      <div ref={elRef} className="map" />
 
       <header className="map-top">
         <h1 className="brand">길잡이들</h1>
@@ -129,7 +190,8 @@ export default function SafetyMap() {
         </div>
       </header>
 
-      {!edges && <div className="loading">안전도 불러오는 중…</div>}
+      {error && <div className="loading error" role="alert">{error}</div>}
+      {!error && (!edges || !maps) && <div className="loading">안전도 불러오는 중…</div>}
 
       {selected ? (
         <section className="sheet" aria-label="구간 정보">

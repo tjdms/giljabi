@@ -10,8 +10,11 @@
 - 작업 하나 끝날 때마다 `npm run build`가 통과하는지 확인한다.
 
 ## 기술 스택
-- 앱: Vite + React + Leaflet(react-leaflet) + Turf.js, 서버 없이 정적 사이트
-- 지도 타일: OpenStreetMap 기본 타일 + CSS 필터로 다크 톤 (키 불필요, 출처 "© OpenStreetMap contributors" 표기 필수). CARTO dark는 API 키가 필요해져서 안 씀
+- 앱: Vite + React + 네이버 지도 JavaScript API v3 + Turf.js, 서버 없이 정적 사이트
+- 지도: 네이버 지도 JavaScript API v3, GL 서브 모듈(`submodules=gl`) + `gl: true` + `customStyleId`(Style Editor 다크 스타일). 스크립트 파라미터는 `ncpKeyId` (2025 개편 후)
+  - 키: `.env`의 `VITE_NAVER_CLIENT_ID`, `VITE_NAVER_STYLE_ID` (`.env`는 커밋 금지, 형식은 `.env.example`). 클라이언트 ID는 빌드된 JS에 들어가므로 NCP 콘솔에 Web 서비스 URL(localhost, 배포 도메인)을 등록해서 막는다
+  - 구간은 `map.data.addGeoJson` + `setStyle`로 그림. 구간 탭은 지도 클릭 위치에서 16px 안 가장 가까운 구간으로 판정
+  - 커스텀 스타일을 쓰면 위성·지형 지도 유형과 교통·지적도 레이어는 못 씀. GL은 drawing·visualization 서브 모듈과 같이 못 씀
 - 경로 계산: 브라우저에서 직접 (edges_scored.geojson의 u, v로 그래프 만들고 다익스트라)
 - 점수 계산: Python (osmnx, geopandas, rasterio) — `scripts/`
 - 배포: Vercel
