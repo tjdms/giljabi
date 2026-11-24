@@ -47,6 +47,12 @@ CRS_M   = "EPSG:5179"   # 거리 계산용 좌표계 (미터 단위)
 
 FACILITY_TYPES = ["cctv", "bell", "police", "store"]   # 지도에 띄울 시설
 
+# 범례에 기준일을 보여줄 데이터 (meta.json)
+META_DATASETS = {
+    "light": "보안등", "cctv": "CCTV", "shop": "상가",
+    "bell": "비상벨", "police": "지구대", "store": "편의점",
+}
+
 
 # ── 분석 범위 + 보행 도로망 (노트북 ③) ────────────────────────
 def load_network():
@@ -182,6 +188,28 @@ def save_facilities():
     print("저장:", path.relative_to(ROOT), "/", df["type"].value_counts().to_dict())
 
 
+def save_meta():
+    datasets = {}
+    for key, label in META_DATASETS.items():
+        path = CLEAN / f"{key}_namgu.csv"
+        if not path.exists():
+            continue
+        df = pd.read_csv(path, encoding="utf-8-sig", dtype={"base_date": str})
+        datasets[key] = {
+            "label": label,
+            "base_date": df["base_date"].dropna().max(),          # 파일 안 가장 최근 기준일
+            "source": df["source"].dropna().mode().iloc[0],
+        }
+    meta = {
+        "datasets": datasets,
+        "road": {"label": "도로망", "source": "OpenStreetMap", "downloaded": pd.Timestamp.now().strftime("%Y-%m-%d")},
+    }
+    path = OUT / "meta.json"
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+    print("저장:", path.relative_to(ROOT), "/", {k: v["base_date"] for k, v in datasets.items()})
+
+
 def main():
     Gp, nodes, edges = load_network()
 
@@ -212,6 +240,7 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     save_edges(edges)
     save_facilities()
+    save_meta()
     print("적용 가중치:", used_w, "/ 반경:", RADIUS_M, "m")
 
 

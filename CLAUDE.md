@@ -48,6 +48,7 @@ src/                 앱 코드
 - risk = 1 − safety, cost = length × (1 + risk)
 - 출력 `public/data/edges_scored.geojson`: 구간 LineString, 속성 u, v, length, safety, score(=safety×100 반올림), grade(1~5), cost
 - 출력 `public/data/facilities.geojson`: cctv, bell, police, store 점 데이터 (type 속성 포함)
+- 출력 `public/data/meta.json`: 데이터별 기준일·출처 (보안등·CCTV·상가·비상벨·지구대·편의점) + 도로망 받은 날짜 — 범례 표시용
 
 ## 기능 (만드는 순서)
 1. **안전도 지도**: 구간을 safety 값으로 그라데이션 색칠, 시설 레이어 켜고 끄기, 구간 누르면 점수·주변 시설 표시, 범례·데이터 기준일

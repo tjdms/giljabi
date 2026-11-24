@@ -1,0 +1,39 @@
+{
+  "datasets": {
+    "light": {
+      "label": "보안등",
+      "base_date": "2026-10-28",
+      "source": "공공데이터포털"
+    },
+    "cctv": {
+      "label": "CCTV",
+      "base_date": "2026-05-07",
+      "source": "공공데이터포털"
+    },
+    "shop": {
+      "label": "상가",
+      "base_date": "2026-09",
+      "source": "소상공인시장진흥공단"
+    },
+    "bell": {
+      "label": "비상벨",
+      "base_date": "2026-01-01",
+      "source": "공공데이터포털"
+    },
+    "police": {
+      "label": "지구대",
+      "base_date": "2025-12-31",
+      "source": "경찰청"
+    },
+    "store": {
+      "label": "편의점",
+      "base_date": "2026-09",
+      "source": "소상공인시장진흥공단"
+    }
+  },
+  "road": {
+    "label": "도로망",
+    "source": "OpenStreetMap",
+    "downloaded": "2026-11-25"
+  }
+}
