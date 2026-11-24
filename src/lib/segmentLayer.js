@@ -29,8 +29,8 @@ export function createSegmentLayer(maps, { features, color, weight = 3, opacity 
     const proj = this.getProjection()
     this.world = features.map((f) => f.geometry.coordinates.map(([x, y]) => proj.fromCoordToPoint(new maps.LatLng(y, x))))
     const map = this.getMap()
-    // 확대·이동 중에도 다시 그림
-    this.listeners = ['bounds_changed', 'zoom_changed', 'size_changed']
+    // 확대·이동 중에도 다시 그림. idle은 처음 자리 잡은 뒤 한 번 더 맞추기용
+    this.listeners = ['bounds_changed', 'zoom_changed', 'size_changed', 'idle']
       .map((ev) => maps.Event.addListener(map, ev, () => this.draw()))
   }
 

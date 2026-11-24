@@ -1,0 +1,8 @@
+// 경로 화면의 "자주 가는 곳" 버튼
+// 좌표는 확인된 것만 넣는다 (지어내지 않음). null이면 버튼이 "좌표 필요"로 꺼져 있음
+export const PLACES = [
+  { id: 'ksu-gate', label: '경성대 정문', latlng: null },     // OSM 검색 결과 없음 → 좌표 받아서 채우기
+  { id: 'pknu-gate', label: '부경대 정문', latlng: null },    // OSM 검색 결과 없음 → 좌표 받아서 채우기
+  { id: 'daeyeon', label: '대연역', latlng: [35.135132, 129.092166] },          // OSM 역 노드 14102501757
+  { id: 'ksu-pknu', label: '경성대·부경대역', latlng: [35.137539, 129.100524] }, // OSM 역 노드 14102501758
+]

@@ -3,7 +3,7 @@ import { nearestPointOnLine, point, pointToLineDistance } from '@turf/turf'
 import { FACILITY_TYPES, loadEdges, loadFacilities, loadMeta } from '../data.js'
 import { GRADIENT_CSS, NO_DATA_COLOR, edgeColor } from '../colors.js'
 import { AREA_LABELS, isNoDataArea } from '../lib/areas.js'
-import { AUTH_FAILURE_EVENT, createMap, loadNaverMaps } from '../lib/naver.js'
+import { listenMapTap, useNaverMap } from '../lib/useNaverMap.js'
 import { createSegmentLayer } from '../lib/segmentLayer.js'
 
 const CENTER = [35.1375, 129.0995]   // 경성대·부경대역 부근
@@ -23,55 +23,31 @@ function bbox(geojson) {
 
 export default function SafetyMap() {
   const elRef = useRef(null)
-  const mapRef = useRef(null)
   const markersRef = useRef({})
   const layerRef = useRef(null)
-  const [maps, setMaps] = useState(null)
+  const { maps, map, error: mapError } = useNaverMap(elRef, { center: CENTER })
   const [edges, setEdges] = useState(null)
   const [facilities, setFacilities] = useState(null)
   const [meta, setMeta] = useState(null)
-  const [error, setError] = useState(null)
+  const [dataError, setDataError] = useState(null)
+  const error = mapError || dataError
   const [visible, setVisible] = useState({ cctv: false, bell: true, police: true, store: false })
   const [selected, setSelected] = useState(null)
 
-  // 지도 + 데이터 불러오기
+  // 데이터 불러오기
   useEffect(() => {
-    let map
-    let cancelled = false   // 스크립트 로드 전에 정리되면 지도를 만들지 않음 (StrictMode 이중 실행 때 지도 두 개 생김 방지)
-    const onAuthFail = () => setError('네이버 지도 인증에 실패했어요. 클라이언트 ID와 콘솔에 등록한 Web 서비스 URL을 확인해 주세요')
-    window.addEventListener(AUTH_FAILURE_EVENT, onAuthFail)
-    loadNaverMaps()
-      .then((m) => {
-        if (cancelled) return
-        map = createMap(m, elRef.current, {
-          center: new m.LatLng(...CENTER),
-          zoom: 15,
-          zoomControl: false,
-          mapDataControl: false,
-          scaleControl: false,
-        })
-        mapRef.current = map
-        setMaps(m)
-      })
-      .catch((err) => setError(err.message))
     Promise.all([loadEdges(), loadFacilities()])
       .then(([e, f]) => { setEdges(e); setFacilities(f) })
-      .catch((err) => setError(err.message))
+      .catch((err) => setDataError(err.message))
     // 기준일은 없어도 지도는 보이게
     loadMeta().then(setMeta).catch(() => setMeta(null))
-    return () => {
-      cancelled = true
-      window.removeEventListener(AUTH_FAILURE_EVENT, onAuthFail)
-      for (const list of Object.values(markersRef.current)) for (const m of list) m.setMap(null)
-      markersRef.current = {}
-      map?.destroy()
-      mapRef.current = null
-    }
   }, [])
+
+  // 지도가 바뀌거나 사라지면 마커 기록 비움
+  useEffect(() => () => { markersRef.current = {} }, [map])
 
   // 구간 그리기 (캔버스 오버레이 한 장) + 탭으로 구간 고르기
   useEffect(() => {
-    const map = mapRef.current
     if (!maps || !map || !edges) return
     const layer = createSegmentLayer(maps, {
       features: edges.features,
@@ -83,9 +59,7 @@ export default function SafetyMap() {
     const [x0, y0, x1, y1] = bbox(edges)
     map.fitBounds(new maps.LatLngBounds(new maps.LatLng(y0, x0), new maps.LatLng(y1, x1)))
 
-    const pickAt = (pageX, pageY) => {
-      const proj = map.getProjection()   // 탭할 때 받아야 함 (미리 받아 두면 fitBounds 전 상태로 계산됨)
-      const coord = proj.fromPageXYToCoord(new maps.Point(pageX, pageY))
+    const stopTap = listenMapTap(maps, map, elRef.current, (coord) => {
       const tap = point([coord.x, coord.y])
       let best = null
       let bestD = Infinity
@@ -95,29 +69,19 @@ export default function SafetyMap() {
       }
       if (best) {
         const [x, y] = nearestPointOnLine(best, tap).geometry.coordinates
+        const proj = map.getProjection()   // 탭할 때 받아야 함 (미리 받아 두면 fitBounds 전 상태로 계산됨)
         const a = proj.fromCoordToOffset(coord)
         const b = proj.fromCoordToOffset(new maps.LatLng(y, x))
         if (Math.hypot(a.x - b.x, a.y - b.y) > TAP_PX) best = null
       }
       setSelected(best)
-    }
-    // GL 지도는 click 이벤트를 주지 않아서, 눌렀다 뗀 위치가 거의 같으면(끌기가 아니면) 탭으로 봄
-    const el = elRef.current
-    let down = null
-    const onDown = (e) => { down = e.isPrimary ? { x: e.pageX, y: e.pageY, t: e.timeStamp } : null }
-    const onUp = (e) => {
-      if (down && Math.hypot(e.pageX - down.x, e.pageY - down.y) < 6 && e.timeStamp - down.t < 600) pickAt(e.pageX, e.pageY)
-      down = null
-    }
-    el.addEventListener('pointerdown', onDown, true)   // 캡처 단계: 마커 등이 전파를 막아도 받음
-    el.addEventListener('pointerup', onUp, true)
+    })
     return () => {
-      el.removeEventListener('pointerdown', onDown, true)
-      el.removeEventListener('pointerup', onUp, true)
+      stopTap()
       layer.setMap(null)
       layerRef.current = null
     }
-  }, [maps, edges])
+  }, [maps, map, edges])
 
   // 고른 구간 강조
   useEffect(() => {
@@ -126,7 +90,6 @@ export default function SafetyMap() {
 
   // 시설 마커 켜고 끄기
   useEffect(() => {
-    const map = mapRef.current
     if (!maps || !map || !facilities) return
     for (const [type, t] of Object.entries(FACILITY_TYPES)) {
       const on = visible[type]
@@ -153,7 +116,7 @@ export default function SafetyMap() {
         delete markersRef.current[type]
       }
     }
-  }, [maps, facilities, visible])
+  }, [maps, map, facilities, visible])
 
   const nearby = useMemo(() => {
     if (!selected || !facilities) return []
