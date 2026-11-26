@@ -11,7 +11,7 @@ export const WALK_M_PER_MIN = 67   // 도보 속도 (노트북과 같은 값, �
 export const ROUTE_OPTIONS = {
   kValues: [0, 1, 2, 4, 8],
   maxDetour: 0.25,          // +25%
-  noDataMedian: 'all',      // 'all': 전체 구간 중앙값, 'public': 공공데이터 있는 구간 중앙값, null: 대체 안 함
+  noDataMedian: 'public',   // 'public': 공공데이터 있는 구간 중앙값(확정, 약 0.167), 'all': 전체 구간 중앙값, null: 대체 안 함
 }
 
 const median = (a) => {
