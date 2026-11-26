@@ -39,8 +39,9 @@ export function createSegmentLayer(maps, { features, color, weight = 3, opacity 
     this.canvas.remove()
   }
 
+  // f: 구간 하나, 구간 배열, 또는 null
   SegmentLayer.prototype.setSelected = function (f) {
-    this.selected = f
+    this.selected = f ? [].concat(f) : null
     this.draw()
   }
 
@@ -97,8 +98,10 @@ export function createSegmentLayer(maps, { features, color, weight = 3, opacity 
       ctx.globalAlpha = 0.95
       ctx.lineWidth = weight + 4
       ctx.strokeStyle = '#FFFFFF'
-      const i = features.indexOf(this.selected)
-      if (i >= 0) line(this.world[i])
+      for (const s of this.selected) {
+        const i = features.indexOf(s)
+        if (i >= 0) line(this.world[i])
+      }
     }
     this.lastDraw = { drawn, ms: Math.round(performance.now() - t0) }
   }
