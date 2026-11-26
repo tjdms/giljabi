@@ -82,8 +82,12 @@ src/                 앱 코드
    - 문자 본문: 현재 위치 지도 링크(구글 지도 검색 주소, 받는 폰에 어떤 지도 앱이 있든 열림) + 위치 오차. 위치를 못 받으면 위치 없이 보냄. `sms:번호?&body=` 형식(iOS·Android)
 5. (추가) 같이 걷기: 안내 중 마스코트가 함께 걷는 화면 — 마스코트 미정, 자리만
 6. (추가) 사각지대·제안: 점수 낮은 구간 목록
-   - 사각지대 탭(`src/components/Blindspots.jsx`, `src/lib/blindspot.js`): 우선순위 = (1 − safety) × usage(통과 횟수) 높은 순. blindspot_exclude(아파트 단지·캠퍼스·학교), 산책로·계단(path/track/steps), usage 0 구간은 뺌. 양방향 구간은 하나로 합치고, 같은 도로 이름끼리 묶음(묶음의 우선순위·통과 횟수는 그 안 최대값, 점수는 길이 가중 평균). 위 지도 + 아래 목록, 누르면 묶음 전체를 지도에서 강조
-   - 한계: 도로 이름은 구간의 35%만 있어서 이름 없는 짧은 조각(교차로 부근 큰길·보도)이 상위에 많이 나옴
+   - 사각지대 탭(`src/components/Blindspots.jsx`, `src/lib/blindspot.js`), 정책 제안용
+     - 대상: 골목·이면도로(residential, service, unclassified, living_street)와 큰길 옆이 아닌 footway. 큰길(trunk~tertiary·_link)과 큰길 옆 인도·횡단보도(streetlight_missing)는 가로등 데이터가 없어 순위에서 빼고 안전도 지도에 "가로등 미반영" 표시. 아파트 단지·캠퍼스·학교 안, 통과 0회 구간도 뺌
+     - 순위: 위험 노출량 Σ (1 − safety) × usage × 길이(m) / 100, 묶음 안에서 합산. 항목에 위험 노출량·길이·평균 점수(길이 가중)·최대 통과 횟수
+     - 묶기: 이름 있으면 같은 이름끼리. 이름 없으면 구간마다 300m 안 가장 가까운 이름 있는 도로를 정하고, 끝점이 30m 안에서 이어지면서 그 도로 이름이 같은 것끼리 묶어 "○○ 부근"
+     - `?tab=blind&pick=순위&capture=1`: 목록·하단 탭·SOS 없이 그 장소만 지도에 크게 (슬라이드 캡처용)
+     - 한계: 공원으로 안 잡힌 공원·묘역 안 보도(UN기념공원 쪽), 운전면허시험장 코스(service=driving_learning)처럼 밤에 실제로 안 걷는 길이 상위에 들어옴
 
 ## 디자인
 - 와이어프레임 v3 (11화면): https://www.figma.com/design/tNcgMtGYpbOeZW6MnmabvO

@@ -5,6 +5,7 @@ import { PLACES } from '../places.js'
 import { buildGraph, compareRoutes } from '../lib/route.js'
 import { createSegmentLayer } from '../lib/segmentLayer.js'
 import { listenMapTap, useNaverMap } from '../lib/useNaverMap.js'
+import { fitBoundsAll } from '../lib/naver.js'
 import Navigation from './Navigation.jsx'
 
 const CENTER = [35.1375, 129.0995]
@@ -108,10 +109,7 @@ export default function RouteCompare() {
     const pts = [...result.safe.coords, ...result.short.coords]
     const lats = pts.map((p) => p[0])
     const lons = pts.map((p) => p[1])
-    map.fitBounds(
-      new maps.LatLngBounds(new maps.LatLng(Math.min(...lats), Math.min(...lons)), new maps.LatLng(Math.max(...lats), Math.max(...lons))),
-      { top: 170, right: 24, bottom: 230, left: 24 },
-    )
+    fitBoundsAll(maps, map, [Math.min(...lats), Math.min(...lons), Math.max(...lats), Math.max(...lons)], { top: 170, right: 24, bottom: 230, left: 24 })
   }, [maps, map, result, nav])
 
   const useMyLocation = () => {

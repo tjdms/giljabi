@@ -34,3 +34,26 @@ export function createMap(maps, el, options) {
     ...options,
   })
 }
+
+// fitBounds가 확대 단계를 정수로 잡아 범위가 화면 밖으로 잘리는 경우가 있어서,
+// 맞춘 뒤 다 들어왔는지 보고 아니면 0.5단계씩 줄임. box = [최소위도, 최소경도, 최대위도, 최대경도]
+export function fitBoundsAll(maps, map, [y0, x0, y1, x1], padding = { top: 0, right: 0, bottom: 0, left: 0 }) {
+  map.fitBounds(new maps.LatLngBounds(new maps.LatLng(y0, x0), new maps.LatLng(y1, x1)), padding)
+  let tries = 0
+  const check = () => {
+    const proj = map.getProjection()
+    const size = map.getSize()
+    const view = map.getBounds()
+    const origin = proj.fromCoordToOffset(new maps.LatLng(view.getMax().y, view.getMin().x))   // 화면 왼쪽 위
+    const a = proj.fromCoordToOffset(new maps.LatLng(y1, x0))   // 범위 왼쪽 위
+    const b = proj.fromCoordToOffset(new maps.LatLng(y0, x1))   // 범위 오른쪽 아래
+    // 여백을 절반 넘게 침범하면 덜 맞은 것으로 봄
+    const tight = a.x - origin.x < padding.left / 2 || a.y - origin.y < padding.top / 2
+      || origin.x + size.width - b.x < padding.right / 2 || origin.y + size.height - b.y < padding.bottom / 2
+    if (tight && tries++ < 4) {
+      map.setZoom(map.getZoom() - 0.5)
+      maps.Event.once(map, 'idle', check)
+    }
+  }
+  maps.Event.once(map, 'idle', check)
+}

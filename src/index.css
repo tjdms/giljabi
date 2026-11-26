@@ -423,3 +423,6 @@ p { margin: 0; }
 .blind-text .muted { margin: 0; }
 .blind-more { display: block; margin: 12px auto 0; }
 .blind-name { font-weight: 500; }
+.capture-card { padding: 16px; }
+.capture-card .dialog-title { margin: 4px 0; font-size: 20px; }
+.app.capture .tabbar, .app.capture .sos-fab { display: none; }

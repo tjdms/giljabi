@@ -178,6 +178,11 @@ export default function SafetyMap() {
                 : `공공데이터 미포함 · ${AREA_LABELS[p.area_type]} 안이라 단지·학교 자체 CCTV·조명이 점수에 없어요. 실제보다 낮게 나올 수 있어요`}
             </p>
           )}
+          {p.streetlight_missing && (
+            <p className="no-data-note">
+              가로등 미반영 · {p.highway === 'footway' ? '큰길 옆 인도·횡단보도' : '큰길'}이라 가로등이 있어도 보안등 데이터에 없어 점수가 낮게 나올 수 있어요
+            </p>
+          )}
           <p className="sheet-sub">주변 {NEARBY_M}m 시설</p>
           {nearby.length === 0 ? (
             <p className="muted">주변에 CCTV·비상벨·지구대·편의점이 없어요</p>

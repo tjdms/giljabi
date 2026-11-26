@@ -4,6 +4,9 @@ import RouteCompare from './components/RouteCompare.jsx'
 import Sos, { FirstSetup } from './components/Sos.jsx'
 import Blindspots from './components/Blindspots.jsx'
 
+// ?capture=1: 슬라이드 캡처용으로 하단 탭·SOS 숨김
+const CAPTURE = new URLSearchParams(window.location.search).get('capture') === '1'
+
 const TABS = [
   { id: 'map', label: '안전도 지도', icon: '◎' },
   { id: 'route', label: '경로', icon: '↗' },
@@ -18,7 +21,7 @@ export default function App() {
   })
 
   return (
-    <div className="app">
+    <div className={`app ${CAPTURE ? 'capture' : ''}`}>
       <main className="screen">
         {tab === 'map' && <SafetyMap />}
         {tab === 'route' && <RouteCompare />}
