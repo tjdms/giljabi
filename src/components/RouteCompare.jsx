@@ -5,6 +5,7 @@ import { PLACES } from '../places.js'
 import { buildGraph, compareRoutes } from '../lib/route.js'
 import { createSegmentLayer } from '../lib/segmentLayer.js'
 import { listenMapTap, useNaverMap } from '../lib/useNaverMap.js'
+import Navigation from './Navigation.jsx'
 
 const CENTER = [35.1375, 129.0995]
 const SAFE_COLOR = '#6EC6FF'
@@ -30,6 +31,11 @@ export default function RouteCompare() {
   const [end, setEnd] = useState(paramPoint('to'))
   const [picking, setPicking] = useState(paramPoint('from') ? 'end' : 'start')
   const [focus, setFocus] = useState('safe')
+  // 안내 중이면 'gps' 또는 'demo'. ?nav=demo 로 바로 데모 시작 (시연용)
+  const [nav, setNav] = useState(() => {
+    const v = new URLSearchParams(window.location.search).get('nav')
+    return v === 'gps' || v === 'demo' ? v : null
+  })
   const [locating, setLocating] = useState(false)
 
   useEffect(() => {
@@ -205,7 +211,18 @@ export default function RouteCompare() {
               ? '최단 경로가 가장 안심되는 길이에요'
               : `안심 경로가 ${fmtM(extra)}(+${Math.round((extra / result.short.length) * 100)}%) 더 걸어요${scoreDiff === null ? '' : `. 평균 점수는 ${scoreDiff >= 0 ? '+' : ''}${scoreDiff}점이에요`}`}
           </p>
+          <div className="nav-start">
+            <button className="nav-start-main" onClick={() => setNav('gps')}>안심 경로로 안내 시작</button>
+            <button className="chip" onClick={() => setNav('demo')}>데모로 보기</button>
+          </div>
         </section>
+      )}
+
+      {/* 안내 화면은 비교 화면 위에 겹쳐 띄움 (끝내면 비교 화면 그대로) */}
+      {nav && result?.safe && (
+        <div className="nav-layer">
+          <Navigation graph={graph} route={result.safe} dest={end} mode={nav} onExit={() => setNav(null)} />
+        </div>
       )}
     </div>
   )
