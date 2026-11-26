@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { nearestPointOnLine, point, pointToLineDistance } from '@turf/turf'
 import { FACILITY_TYPES, loadEdges, loadFacilities, loadMeta } from '../data.js'
-import { GRADIENT_CSS, safetyColor } from '../colors.js'
+import { GRADIENT_CSS, NO_DATA_COLOR, edgeColor } from '../colors.js'
+import { AREA_LABELS, isNoDataArea } from '../lib/areas.js'
 import { AUTH_FAILURE_EVENT, createMap, loadNaverMaps } from '../lib/naver.js'
 import { createSegmentLayer } from '../lib/segmentLayer.js'
 
@@ -74,7 +75,7 @@ export default function SafetyMap() {
     if (!maps || !map || !edges) return
     const layer = createSegmentLayer(maps, {
       features: edges.features,
-      color: (f) => safetyColor(f.properties.safety),
+      color: (f) => edgeColor(f.properties),
     })
     layer.setMap(map)
     layerRef.current = layer
@@ -82,8 +83,8 @@ export default function SafetyMap() {
     const [x0, y0, x1, y1] = bbox(edges)
     map.fitBounds(new maps.LatLngBounds(new maps.LatLng(y0, x0), new maps.LatLng(y1, x1)))
 
-    const proj = map.getProjection()
     const pickAt = (pageX, pageY) => {
+      const proj = map.getProjection()   // 탭할 때 받아야 함 (미리 받아 두면 fitBounds 전 상태로 계산됨)
       const coord = proj.fromPageXYToCoord(new maps.Point(pageX, pageY))
       const tap = point([coord.x, coord.y])
       let best = null
@@ -108,11 +109,11 @@ export default function SafetyMap() {
       if (down && Math.hypot(e.pageX - down.x, e.pageY - down.y) < 6 && e.timeStamp - down.t < 600) pickAt(e.pageX, e.pageY)
       down = null
     }
-    el.addEventListener('pointerdown', onDown)
-    el.addEventListener('pointerup', onUp)
+    el.addEventListener('pointerdown', onDown, true)   // 캡처 단계: 마커 등이 전파를 막아도 받음
+    el.addEventListener('pointerup', onUp, true)
     return () => {
-      el.removeEventListener('pointerdown', onDown)
-      el.removeEventListener('pointerup', onUp)
+      el.removeEventListener('pointerdown', onDown, true)
+      el.removeEventListener('pointerup', onUp, true)
       layer.setMap(null)
       layerRef.current = null
     }
@@ -201,12 +202,17 @@ export default function SafetyMap() {
         <section className="sheet" aria-label="구간 정보">
           <button className="sheet-close" onClick={() => setSelected(null)} aria-label="닫기">×</button>
           <div className="score-row">
-            <span className="score-badge" style={{ background: safetyColor(p.safety) }}>{p.score}</span>
+            <span className="score-badge" style={{ background: edgeColor(p) }}>{p.score}</span>
             <div>
               <p className="score-title">안전점수 {p.score}점 · {p.grade}등급</p>
               <p className="muted">길이 {Math.round(p.length)}m · 1등급 안전 ~ 5등급 위험 (분석 범위 안 상대 순위)</p>
             </div>
           </div>
+          {isNoDataArea(p) && (
+            <p className="no-data-note">
+              공공데이터 미포함 · {AREA_LABELS[p.area_type]} 안이라 단지·학교 자체 CCTV·조명이 점수에 없어요. 실제보다 낮게 나올 수 있어요
+            </p>
+          )}
           <p className="sheet-sub">주변 {NEARBY_M}m 시설</p>
           {nearby.length === 0 ? (
             <p className="muted">주변에 CCTV·비상벨·지구대·편의점이 없어요</p>
@@ -225,6 +231,10 @@ export default function SafetyMap() {
         <section className="legend" aria-label="범례">
           <div className="legend-bar" style={{ background: GRADIENT_CSS }} />
           <div className="legend-labels"><span>위험</span><span>안전</span></div>
+          <p className="legend-nodata">
+            <span className="legend-swatch" style={{ background: NO_DATA_COLOR }} />
+            공공데이터 미포함 (아파트 단지·캠퍼스·학교 안)
+          </p>
           {meta && (
             <p className="legend-date">
               기준일 {Object.values(meta.datasets).map((d) => `${d.label} ${d.base_date}`).join(' · ')}

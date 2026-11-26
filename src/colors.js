@@ -1,3 +1,5 @@
+import { isNoDataArea } from './lib/areas.js'
+
 // 안전도 그라데이션: 주황(위험) → 노랑 → 파랑(안전). 적록색약 고려해 초록·빨강 안 씀
 const STOPS = [
   [0, [255, 138, 61]],   // #FF8A3D
@@ -20,3 +22,8 @@ export function safetyColor(safety) {
   }
   return `rgb(${STOPS.at(-1)[1].join(',')})`
 }
+
+// 공공데이터 미포함 구역(아파트·캠퍼스·학교) 구간 색
+export const NO_DATA_COLOR = '#7A8194'
+
+export const edgeColor = (props) => (isNoDataArea(props) ? NO_DATA_COLOR : safetyColor(props.safety))
