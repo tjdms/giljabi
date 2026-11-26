@@ -53,6 +53,10 @@ SHARE_FOOTWAY = {"sidewalk", "crossing"}          # OSM footway=*
 ROAD_TYPES = {"trunk", "trunk_link", "primary", "primary_link", "secondary", "secondary_link",
               "tertiary", "tertiary_link", "residential", "unclassified", "living_street"}
 SHARE_MAX_DIST = 30   # 인도 중간점에서 이 거리 안의 가장 가까운 차도와 짝지음 (m)
+# 큰길: 보안등 데이터에 큰길 가로등이 없어 점수가 낮게 나옴 → 큰길과 그 옆에 짝지어진 인도·횡단보도는
+# streetlight_missing=true (사각지대 정책 순위에서 빼고 "가로등 미반영"으로 표시)
+BIG_ROADS = {"trunk", "trunk_link", "primary", "primary_link", "secondary", "secondary_link",
+             "tertiary", "tertiary_link"}
 ox.settings.useful_tags_way = list(dict.fromkeys(list(ox.settings.useful_tags_way) + ["footway"]))
 
 # 범례에 기준일을 보여줄 데이터 (meta.json)
@@ -104,7 +108,8 @@ def facility_density(edges, key, cfg):
 
 
 def first_tag(v):
-    return v[0] if isinstance(v, list) else v
+    # 여러 OSM 길이 합쳐진 구간은 태그가 목록인데 순서가 실행마다 달라서, 정렬한 첫 값을 씀 (결과 재현용)
+    return sorted(map(str, v))[0] if isinstance(v, list) else v
 
 
 def share_with_road(edges, raw_ind, polygon):
@@ -129,6 +134,10 @@ def share_with_road(edges, raw_ind, polygon):
     for k, rv in road_raw.items():
         road_val = rv.loc[road_idx].values
         raw_ind[k].loc[pair.index] = np.maximum(raw_ind[k].loc[pair.index].values, road_val)
+    # 짝지어진 차도 종류 (가로등 미반영 표시용)
+    edges["paired_highway"] = None
+    edges.loc[pair.index, "paired_highway"] = roads.loc[road_idx, "highway"].apply(first_tag).to_numpy()
+    edges["streetlight_missing"] = hw.isin(BIG_ROADS) | edges["paired_highway"].isin(BIG_ROADS)
     print(f"[인도·횡단보도] {is_share.sum()}구간 중 {len(pair)}구간이 {SHARE_MAX_DIST}m 안 차도와 짝지어짐")
 
 
@@ -269,14 +278,16 @@ def sensitivity(raw_ind, edges, paper_w):
 
 # ── 결과 저장 (노트북 ⑩, CLAUDE.md 출력 형식) ────────────────
 def save_edges(edges):
-    out = edges[["length", "safety", "grade", "cost", "area_type", "no_public_data", "blindspot_exclude", "usage", "geometry"]].reset_index().to_crs("EPSG:4326")
+    out = edges[["length", "safety", "grade", "cost", "area_type", "no_public_data", "blindspot_exclude", "usage",
+                 "paired_highway", "streetlight_missing", "geometry"]].reset_index().to_crs("EPSG:4326")
     out["highway"] = edges["highway"].apply(first_tag).to_numpy()
     out["name"] = edges["name"].apply(first_tag).to_numpy() if "name" in edges else None   # 도로 이름 (없으면 null)
     out["score"] = (out["safety"] * 100).round().astype(int)
     out["length"] = out["length"].round(2)
     out["safety"] = out["safety"].round(4)
     out["cost"] = out["cost"].round(2)
-    out = out[["u", "v", "length", "safety", "score", "grade", "cost", "highway", "name", "area_type", "no_public_data", "blindspot_exclude", "usage", "geometry"]]
+    out = out[["u", "v", "length", "safety", "score", "grade", "cost", "highway", "name", "paired_highway", "streetlight_missing",
+               "area_type", "no_public_data", "blindspot_exclude", "usage", "geometry"]]
     path = OUT / "edges_scored.geojson"
     out.to_file(path, driver="GeoJSON", COORDINATE_PRECISION=6)
     print("저장:", path.relative_to(ROOT), "/", len(out), "구간")
