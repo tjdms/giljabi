@@ -174,6 +174,40 @@ def tag_areas(edges, polygon):
     print(share[["size", "구간 비율", "길이 비율"]].to_string())
 
 
+# ── 이용 빈도 (사각지대 우선순위용, 점수는 그대로) ─────────────────
+# 분석 범위 안 무작위 출발·도착 USAGE_PAIRS쌍(직선 USAGE_MIN_M~USAGE_MAX_M, 시드 고정)의 최단 경로를
+# 구하고, 구간마다 지나간 횟수를 셈. 같은 길 양방향(u→v, v→u)은 합쳐서 셈
+USAGE_PAIRS = 1000
+USAGE_MIN_M, USAGE_MAX_M = 300, 2000
+USAGE_SEED = 20261126
+
+
+def count_usage(Gp, nodes, edges):
+    rng = np.random.default_rng(USAGE_SEED)
+    ids = nodes.index.to_numpy()
+    xy = nodes[["x", "y"]].to_numpy()
+    counts = {}
+    done = tries = no_path = 0
+    while done < USAGE_PAIRS:
+        tries += 1
+        a, b = rng.integers(len(ids), size=2)
+        d = np.hypot(*(xy[a] - xy[b]))
+        if not (USAGE_MIN_M <= d <= USAGE_MAX_M):
+            continue
+        try:
+            path = nx.shortest_path(Gp, ids[a], ids[b], weight="length")
+        except nx.NetworkXNoPath:
+            no_path += 1
+            continue
+        for u, v in zip(path, path[1:]):
+            k = (u, v) if u < v else (v, u)
+            counts[k] = counts.get(k, 0) + 1
+        done += 1
+    u = edges.index.get_level_values("u"); v = edges.index.get_level_values("v")
+    edges["usage"] = [counts.get((a, b) if a < b else (b, a), 0) for a, b in zip(u, v)]
+    print(f"[이용 빈도] {USAGE_PAIRS}쌍 (뽑은 횟수 {tries}, 길 없음 {no_path}), 한 번이라도 지나간 구간 {(edges['usage'] > 0).mean():.0%}")
+
+
 # ── 경사도 (노트북 ⑤)────────────────────────────────────────
 def slope_grade(nodes, edges):
     dem_path = CLEAN / INDICATORS["slope"]["file"]
@@ -235,12 +269,14 @@ def sensitivity(raw_ind, edges, paper_w):
 
 # ── 결과 저장 (노트북 ⑩, CLAUDE.md 출력 형식) ────────────────
 def save_edges(edges):
-    out = edges[["length", "safety", "grade", "cost", "area_type", "no_public_data", "blindspot_exclude", "geometry"]].reset_index().to_crs("EPSG:4326")
+    out = edges[["length", "safety", "grade", "cost", "area_type", "no_public_data", "blindspot_exclude", "usage", "geometry"]].reset_index().to_crs("EPSG:4326")
+    out["highway"] = edges["highway"].apply(first_tag).to_numpy()
+    out["name"] = edges["name"].apply(first_tag).to_numpy() if "name" in edges else None   # 도로 이름 (없으면 null)
     out["score"] = (out["safety"] * 100).round().astype(int)
     out["length"] = out["length"].round(2)
     out["safety"] = out["safety"].round(4)
     out["cost"] = out["cost"].round(2)
-    out = out[["u", "v", "length", "safety", "score", "grade", "cost", "area_type", "no_public_data", "blindspot_exclude", "geometry"]]
+    out = out[["u", "v", "length", "safety", "score", "grade", "cost", "highway", "name", "area_type", "no_public_data", "blindspot_exclude", "usage", "geometry"]]
     path = OUT / "edges_scored.geojson"
     out.to_file(path, driver="GeoJSON", COORDINATE_PRECISION=6)
     print("저장:", path.relative_to(ROOT), "/", len(out), "구간")
@@ -301,6 +337,7 @@ def main():
             raw_ind[key] = v
     share_with_road(edges, raw_ind, polygon)
     tag_areas(edges, polygon)
+    count_usage(Gp, nodes, edges)
     s = slope_grade(nodes, edges)
     if s is not None:
         raw_ind["slope"] = s
