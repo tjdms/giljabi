@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { compareRoutes } from '../lib/route.js'
 import { NAV_OPTIONS, distanceM, lineLengthM, offsetFromRoute, pointAlongM, progressOn, routeLine } from '../lib/nav.js'
-import { useNaverMap } from '../lib/useNaverMap.js'
 
 const SAFE_COLOR = '#6EC6FF'
 const DEMO_TICK_MS = 200
 const fmtM = (m) => (m >= 1000 ? `${(m / 1000).toFixed(2)}km` : `${Math.round(m)}m`)
 
 // 실시간 안내. mode: 'gps'(실제 위치) 또는 'demo'(경로를 따라 일정 속도로 움직임, 발표 시연용)
-export default function Navigation({ graph, route, dest, mode, onExit }) {
-  const elRef = useRef(null)
-  const { maps, map, error: mapError } = useNaverMap(elRef, { center: route.coords[0], zoom: 17 })
+// 지도는 경로 비교 화면의 지도를 같이 씀. GL 지도를 하나 더 만들면 두 번째 지도에
+// 커스텀 스타일이 안 먹고 밝은 기본 스타일로 뜨는 경우가 있어서 (스타일 요청이 한 지도에서만 나감)
+export default function Navigation({ maps, map, graph, route, dest, mode, onExit }) {
   const [current, setCurrent] = useState(route)   // 따라가는 안심 경로 (재탐색하면 바뀜)
   const line = useMemo(() => routeLine(current.coords), [current])
   const totalM = useMemo(() => lineLengthM(line), [line])
@@ -120,6 +119,8 @@ export default function Navigation({ graph, route, dest, mode, onExit }) {
   const meRef = useRef(null)
   useEffect(() => {
     if (!maps || !map) return
+    map.setZoom(17)
+    map.setCenter(new maps.LatLng(...route.coords[0]))
     meRef.current = new maps.Marker({
       map,
       position: new maps.LatLng(...route.coords[0]),
@@ -144,10 +145,7 @@ export default function Navigation({ graph, route, dest, mode, onExit }) {
   const elapsedMin = Math.max(1, Math.round((Date.now() - startedAt.current) / 60000))
 
   return (
-    <div className="map-screen nav-screen">
-      <div className="map">
-        <div ref={elRef} className="map-canvas" />
-      </div>
+    <div className="nav-overlay">
 
       <header className="nav-top">
         <div>
@@ -158,7 +156,7 @@ export default function Navigation({ graph, route, dest, mode, onExit }) {
       </header>
 
       {notice && <div className="nav-notice" role="alert">{notice}</div>}
-      {(mapError || gpsError) && <div className="toast" role="alert">{mapError || gpsError}</div>}
+      {gpsError && <div className="toast" role="alert">{gpsError}</div>}
 
       {!follow && status === 'nav' && (
         <button className="chip on nav-follow" onClick={() => setFollow(true)}>내 위치로</button>

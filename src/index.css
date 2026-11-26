@@ -18,6 +18,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 p { margin: 0; }
 
 .app {
+  position: relative;
   height: 100%;
   max-width: 480px;
   margin: 0 auto;
@@ -240,7 +241,8 @@ p { margin: 0; }
   font-weight: 700;
   font-size: 14px;
 }
-.nav-layer { position: absolute; inset: 0; z-index: 700; background: var(--bg); }
+.nav-layer, .nav-overlay { position: absolute; inset: 0; z-index: 700; pointer-events: none; }
+.nav-overlay > * { pointer-events: auto; }   /* 지도는 그대로 끌고 확대할 수 있게 UI만 클릭 받음 */
 .nav-top {
   position: absolute;
   top: 0; left: 0; right: 0;
@@ -291,3 +293,96 @@ p { margin: 0; }
   border: 4px solid #FFFFFF;
   box-shadow: 0 0 0 6px rgba(110, 198, 255, 0.35);
 }
+
+/* SOS */
+.sos-fab {
+  position: absolute;
+  right: 12px;
+  top: 42%;
+  z-index: 900;
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  border: 3px solid #FFFFFF;
+  background: #E5484D;
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 15px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+.dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(10, 14, 28, 0.7);
+}
+.dialog {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--surface);
+}
+.dialog-title { font-size: 18px; font-weight: 700; }
+.dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+.sos-confirm {
+  flex: 1;
+  padding: 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #E5484D;
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 15px;
+}
+.guardian-form { display: flex; flex-direction: column; gap: 8px; }
+.guardian-form input {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--surface-2);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+}
+.form-error { color: #FFD54A; font-size: 13px; }
+.sos-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  overflow-y: auto;
+  background: var(--bg);
+}
+.sos-head { display: flex; align-items: center; justify-content: space-between; }
+.sos-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 16px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+.sos-call { background: #E5484D; color: #FFFFFF; font-size: 20px; padding: 20px; }
+.sos-sub { font-size: 12px; font-weight: 400; color: var(--muted); }
+.sos-link { align-self: center; border: 0; background: none; color: var(--accent); font-size: 13px; text-decoration: underline; }
+.sos-loc { text-align: center; }
+.sos-near ul { list-style: none; margin: 6px 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sos-near li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--surface); font-size: 14px; }
+.sos-note { margin-top: auto; text-align: center; }

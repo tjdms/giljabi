@@ -50,6 +50,7 @@ export default function RouteCompare() {
   const offNetwork = result?.snap?.some((s) => s.dist > SNAP_WARN_M)
 
   const setPoint = (p) => {
+    if (nav) return   // 안내 중에는 지도 탭으로 출발·도착을 바꾸지 않음
     if (picking === 'start') { setStart(p); setPicking(end ? null : 'end') }
     else if (picking === 'end') { setEnd(p); setPicking(start ? null : 'start') }
   }
@@ -71,9 +72,9 @@ export default function RouteCompare() {
     return () => { stopTap(); layer.setMap(null) }
   }, [maps, map, edges])
 
-  // 두 경로 + 출발·도착 표시
+  // 두 경로 + 출발·도착 표시 (안내 중에는 안내 화면이 그림)
   useEffect(() => {
-    if (!maps || !map) return
+    if (!maps || !map || nav) return
     const overlays = []
     const pin = (latlng, label, cls) => overlays.push(new maps.Marker({
       map,
@@ -99,11 +100,11 @@ export default function RouteCompare() {
     if (start) pin(start, '출발', 'pin-start')
     if (end) pin(end, '도착', 'pin-end')
     return () => { for (const o of overlays) o.setMap(null) }
-  }, [maps, map, result, start, end, focus])
+  }, [maps, map, result, start, end, focus, nav])
 
-  // 새 경로가 나오면 두 경로가 다 보이게
+  // 새 경로가 나오거나 안내가 끝나면 두 경로가 다 보이게
   useEffect(() => {
-    if (!maps || !map || !result?.short) return
+    if (!maps || !map || !result?.short || nav) return
     const pts = [...result.safe.coords, ...result.short.coords]
     const lats = pts.map((p) => p[0])
     const lons = pts.map((p) => p[1])
@@ -111,7 +112,7 @@ export default function RouteCompare() {
       new maps.LatLngBounds(new maps.LatLng(Math.min(...lats), Math.min(...lons)), new maps.LatLng(Math.max(...lats), Math.max(...lons))),
       { top: 170, right: 24, bottom: 230, left: 24 },
     )
-  }, [maps, map, result])
+  }, [maps, map, result, nav])
 
   const useMyLocation = () => {
     if (!navigator.geolocation) { setError('이 브라우저는 위치를 지원하지 않아요'); return }
@@ -147,7 +148,7 @@ export default function RouteCompare() {
         <div ref={elRef} className="map-canvas" />
       </div>
 
-      <header className="route-top">
+      {!nav && <header className="route-top">
         <div className="od">
           <button className={`od-row ${picking === 'start' ? 'picking' : ''}`} onClick={() => setPicking('start')}>
             <span className="od-dot start" />
@@ -176,7 +177,7 @@ export default function RouteCompare() {
           {start && end && <button className="chip" onClick={swap}>바꾸기</button>}
           {(start || end) && <button className="chip" onClick={reset}>다시 고르기</button>}
         </div>
-      </header>
+      </header>}
 
       {!edges && !shownError && <div className="loading">길 정보 불러오는 중…</div>}
 
@@ -184,7 +185,7 @@ export default function RouteCompare() {
         <div className="toast" role="alert" onClick={() => setError(null)}>{shownError}</div>
       )}
 
-      {result?.short && (
+      {result?.short && !nav && (
         <section className="sheet route-sheet" aria-label="경로 비교">
           {offNetwork && <p className="warn">출발이나 도착이 분석 범위(대학가 반경 1.2km) 밖이라 가장 가까운 길에서 계산했어요</p>}
           <div className="route-cards">
@@ -218,10 +219,10 @@ export default function RouteCompare() {
         </section>
       )}
 
-      {/* 안내 화면은 비교 화면 위에 겹쳐 띄움 (끝내면 비교 화면 그대로) */}
-      {nav && result?.safe && (
+      {/* 안내 화면은 같은 지도 위에 UI만 겹쳐 띄움 (끝내면 비교 화면 그대로) */}
+      {nav && result?.safe && maps && map && (
         <div className="nav-layer">
-          <Navigation graph={graph} route={result.safe} dest={end} mode={nav} onExit={() => setNav(null)} />
+          <Navigation maps={maps} map={map} graph={graph} route={result.safe} dest={end} mode={nav} onExit={() => setNav(null)} />
         </div>
       )}
     </div>

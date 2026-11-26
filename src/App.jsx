@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import SafetyMap from './components/SafetyMap.jsx'
 import RouteCompare from './components/RouteCompare.jsx'
+import Sos, { FirstSetup } from './components/Sos.jsx'
 
 const TABS = [
   { id: 'map', label: '안전도 지도', icon: '◎' },
@@ -40,6 +41,8 @@ export default function App() {
           </button>
         ))}
       </nav>
+      <Sos />
+      <FirstSetup />
     </div>
   )
 }
