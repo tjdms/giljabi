@@ -210,7 +210,9 @@ export default function SafetyMap() {
           </div>
           {isNoDataArea(p) && (
             <p className="no-data-note">
-              공공데이터 미포함 · {AREA_LABELS[p.area_type]} 안이라 단지·학교 자체 CCTV·조명이 점수에 없어요. 실제보다 낮게 나올 수 있어요
+              {p.area_type === 'outside_namgu'
+                ? '공공데이터 미포함 · 남구 밖이라 데이터 없음. 보안등·CCTV·상가 데이터가 남구 것만 있어서 점수가 실제보다 낮게 나와요'
+                : `공공데이터 미포함 · ${AREA_LABELS[p.area_type]} 안이라 단지·학교 자체 CCTV·조명이 점수에 없어요. 실제보다 낮게 나올 수 있어요`}
             </p>
           )}
           <p className="sheet-sub">주변 {NEARBY_M}m 시설</p>
@@ -233,7 +235,7 @@ export default function SafetyMap() {
           <div className="legend-labels"><span>위험</span><span>안전</span></div>
           <p className="legend-nodata">
             <span className="legend-swatch" style={{ background: NO_DATA_COLOR }} />
-            공공데이터 미포함 (아파트 단지·캠퍼스·학교 안)
+            공공데이터 미포함 (사유지·남구 밖)
           </p>
           {meta && (
             <p className="legend-date">
