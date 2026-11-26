@@ -57,7 +57,15 @@ SHARE_MAX_DIST = 30   # 인도 중간점에서 이 거리 안의 가장 가까�
 # streetlight_missing=true (사각지대 정책 순위에서 빼고 "가로등 미반영"으로 표시)
 BIG_ROADS = {"trunk", "trunk_link", "primary", "primary_link", "secondary", "secondary_link",
              "tertiary", "tertiary_link"}
-ox.settings.useful_tags_way = list(dict.fromkeys(list(ox.settings.useful_tags_way) + ["footway"]))
+ox.settings.useful_tags_way = list(dict.fromkeys(list(ox.settings.useful_tags_way) + ["footway", "foot"]))
+
+# 보행망에서 뺄 길 (밤에 사람이 실제로 걸을 수 없는 길이 지름길로 쓰이지 않게)
+EXCLUDE_SERVICE = {"driving_learning"}   # 운전면허시험장 코스
+NO_ACCESS = {"private", "no"}            # 출입 금지 (단 foot이 FOOT_OK면 유지)
+FOOT_OK = {"yes", "designated"}
+EXCLUDE_LANDUSE = {"landuse": "cemetery"}   # 묘역 안 길
+# 이용 시간(opening_hours)이 정해진(24/7 아님) 구역 안 길: 밤에 닫힘. UN기념공원은 OSM에서 묘역이 아니라
+# leisure=park + opening_hours(9~17/18시)로 그려져 있어서 이 기준으로 빠짐
 
 # 범례에 기준일을 보여줄 데이터 (meta.json)
 META_DATASETS = {
@@ -148,12 +156,48 @@ AREA_PRIORITY = ["campus", "school", "apartment", "park"]
 NO_BLINDSPOT_AREAS = {"apartment", "campus", "school"}   # 사각지대 목록에서 뺄 구역
 
 
-def osm_polygons(polygon, tags):
+def osm_polygons(polygon, tags, with_names=False):
     try:
         f = ox.features_from_polygon(polygon, tags=tags)
     except ox._errors.InsufficientResponseError:   # 해당 태그 없음
-        return gpd.GeoSeries([], crs="EPSG:4326")
-    return f[f.geom_type.isin(["Polygon", "MultiPolygon"])].geometry
+        return (gpd.GeoSeries([], crs="EPSG:4326"), []) if with_names else gpd.GeoSeries([], crs="EPSG:4326")
+    f = f[f.geom_type.isin(["Polygon", "MultiPolygon"])]
+    if with_names:
+        return f.geometry, f.get("name", pd.Series(dtype=object)).dropna().tolist()
+    return f.geometry
+
+
+def tag_set(v):
+    if isinstance(v, list):
+        return set(map(str, v))
+    return {str(v)} if isinstance(v, str) else set()
+
+
+def drop_unwalkable(Gp, polygon):
+    """운전면허시험장 코스, 출입 금지 길(foot=yes·designated면 유지), 묘역 안 길을 보행망에서 뺌"""
+    _, edges = ox.graph_to_gdfs(Gp)
+    col = lambda c: edges[c] if c in edges else pd.Series(None, index=edges.index, dtype=object)
+    by_service = col("service").apply(lambda v: bool(tag_set(v) & EXCLUDE_SERVICE))
+    by_access = col("access").apply(lambda v: bool(tag_set(v) & NO_ACCESS)) & ~col("foot").apply(lambda v: bool(tag_set(v) & FOOT_OK))
+    mid = edges.geometry.interpolate(0.5, normalized=True)
+    inside = lambda shapes: mid.within(shapes.to_crs(CRS_M).union_all()) if len(shapes) else pd.Series(False, index=edges.index)
+    cemetery, cem_names = osm_polygons(polygon, EXCLUDE_LANDUSE, with_names=True)
+    by_landuse = inside(cemetery)
+    try:
+        timed = ox.features_from_polygon(polygon, tags={"opening_hours": True})
+        timed = timed[timed.geom_type.isin(["Polygon", "MultiPolygon"]) & ~timed["opening_hours"].astype(str).str.contains("24/7")]
+    except ox._errors.InsufficientResponseError:
+        timed = gpd.GeoDataFrame(geometry=[], crs="EPSG:4326")
+    by_hours = inside(timed.geometry)
+    hour_names = [n for n, k in zip(timed.get("name", pd.Series(dtype=object)), timed.geometry.to_crs(CRS_M)) if mid.within(k).any()]
+    drop = by_service | by_access | by_landuse | by_hours
+    print(f"[보행망 정리] 운전면허시험장 코스 {by_service.sum()} / 출입 금지 {by_access.sum()} / 묘역 안 {by_landuse.sum()} "
+          f"({', '.join(map(str, cem_names)) or '없음'}) / 이용 시간 있는 구역 안 {by_hours.sum()} ({', '.join(map(str, hour_names)) or '없음'}) "
+          f"→ 합계 {drop.sum()}구간 뺌")
+    Gp.remove_edges_from(edges.index[drop])
+    Gp.remove_nodes_from(list(nx.isolates(Gp)))
+    nodes, edges = ox.graph_to_gdfs(Gp)
+    return Gp, nodes, edges
 
 
 def tag_areas(edges, polygon):
@@ -338,6 +382,7 @@ def save_meta():
 
 def main():
     Gp, nodes, edges, polygon = load_network()
+    Gp, nodes, edges = drop_unwalkable(Gp, polygon)
 
     raw_ind = {}
     for key, cfg in INDICATORS.items():
