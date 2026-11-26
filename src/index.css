@@ -226,3 +226,4 @@ p { margin: 0; }
 .route-score { font-size: 13px; color: var(--muted); }
 .route-score b { color: var(--text); }
 .route-diff { margin-top: 10px; font-size: 13px; line-height: 1.5; }
+.route-nodata { font-size: 11px; color: var(--muted); line-height: 1.4; }

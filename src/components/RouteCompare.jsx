@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { loadEdges } from '../data.js'
-import { safetyColor } from '../colors.js'
+import { edgeColor } from '../colors.js'
 import { PLACES } from '../places.js'
 import { buildGraph, compareRoutes } from '../lib/route.js'
 import { createSegmentLayer } from '../lib/segmentLayer.js'
@@ -56,7 +56,7 @@ export default function RouteCompare() {
     if (!maps || !map || !edges) return
     const layer = createSegmentLayer(maps, {
       features: edges.features,
-      color: (f) => safetyColor(f.properties.safety),
+      color: (f) => edgeColor(f.properties),
       weight: 1.5,
       opacity: 0.35,
     })
@@ -127,7 +127,8 @@ export default function RouteCompare() {
 
   const same = result?.short && Math.abs(result.safe.length - result.short.length) < 1
   const extra = result?.short ? result.safe.length - result.short.length : 0
-  const scoreDiff = result?.short ? Math.round(result.safe.score - result.short.score) : 0
+  const bothScored = result?.short && result.safe.score !== null && result.short.score !== null
+  const scoreDiff = bothScored ? Math.round(result.safe.score - result.short.score) : null
   const routes = result?.short ? [
     { id: 'safe', label: '안심 경로', color: SAFE_COLOR, r: result.safe },
     { id: 'short', label: '최단 경로', color: SHORT_COLOR, r: result.short },
@@ -192,14 +193,17 @@ export default function RouteCompare() {
                 <span className="route-name"><span className={`swatch ${id}`} />{label}</span>
                 <span className="route-big">{fmtM(r.length)}</span>
                 <span className="muted">도보 약 {Math.max(1, Math.round(r.minutes))}분</span>
-                <span className="route-score">평균 점수 <b>{Math.round(r.score)}</b></span>
+                <span className="route-score">평균 점수 <b>{r.score === null ? '정보 없음' : Math.round(r.score)}</b></span>
+                {r.noDataLength >= 1 && (
+                  <span className="route-nodata">공공데이터 미포함 구간 {fmtM(r.noDataLength)}({Math.round(r.noDataRatio * 100)}%)</span>
+                )}
               </button>
             ))}
           </div>
           <p className="route-diff">
             {same
               ? '최단 경로가 가장 안심되는 길이에요'
-              : `안심 경로가 ${fmtM(extra)}(+${Math.round((extra / result.short.length) * 100)}%) 더 걷고, 평균 점수는 ${scoreDiff >= 0 ? '+' : ''}${scoreDiff}점이에요`}
+              : `안심 경로가 ${fmtM(extra)}(+${Math.round((extra / result.short.length) * 100)}%) 더 걸어요${scoreDiff === null ? '' : `. 평균 점수는 ${scoreDiff >= 0 ? '+' : ''}${scoreDiff}점이에요`}`}
           </p>
         </section>
       )}
