@@ -5,7 +5,7 @@
 
 ## 작업 규칙
 - 한국어로 답하고, 커밋 메시지도 한국어로 짧게 쓴다.
-- 기능별 브랜치에서 작업하고 PR로 main에 합친다: `feature/data`, `feature/map`, `feature/route`, `feature/navigation`, `feature/sos`
+- 기능별 브랜치에서 작업하고 PR로 main에 합친다: `feature/data`, `feature/map`, `feature/route`, `feature/navigation`, `feature/sos`, `feature/blindspot`
 - 데이터를 지어내지 않는다. 점수·시설 데이터가 없으면 멈추고 알린다. 화면 확인용 임시 데이터가 필요하면 파일명에 `sample_`을 붙이고 화면에도 "샘플"이라고 표시한다.
 - 작업 하나 끝날 때마다 `npm run build`가 통과하는지 확인한다.
 
@@ -82,6 +82,8 @@ src/                 앱 코드
    - 문자 본문: 현재 위치 지도 링크(구글 지도 검색 주소, 받는 폰에 어떤 지도 앱이 있든 열림) + 위치 오차. 위치를 못 받으면 위치 없이 보냄. `sms:번호?&body=` 형식(iOS·Android)
 5. (추가) 같이 걷기: 안내 중 마스코트가 함께 걷는 화면 — 마스코트 미정, 자리만
 6. (추가) 사각지대·제안: 점수 낮은 구간 목록
+   - 사각지대 탭(`src/components/Blindspots.jsx`, `src/lib/blindspot.js`): blindspot_exclude(아파트 단지·캠퍼스·학교) 구간은 빼고, 양방향 구간은 하나로 합쳐 점수 낮은 순(같으면 긴 구간 먼저). 위 지도 + 아래 목록, 항목 누르면 지도에서 강조. "20m 미만 숨기기" 선택
+   - 한계: 상위 목록에 산책로(path)가 많음 (상위 30개 중 18개, 황령산 쪽). 결과 파일에 도로 종류가 없어 앱에서는 아직 못 거름
 
 ## 디자인
 - 와이어프레임 v3 (11화면): https://www.figma.com/design/tNcgMtGYpbOeZW6MnmabvO

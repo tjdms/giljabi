@@ -2,6 +2,7 @@ import { useState } from 'react'
 import SafetyMap from './components/SafetyMap.jsx'
 import RouteCompare from './components/RouteCompare.jsx'
 import Sos, { FirstSetup } from './components/Sos.jsx'
+import Blindspots from './components/Blindspots.jsx'
 
 const TABS = [
   { id: 'map', label: '안전도 지도', icon: '◎' },
@@ -21,12 +22,7 @@ export default function App() {
       <main className="screen">
         {tab === 'map' && <SafetyMap />}
         {tab === 'route' && <RouteCompare />}
-        {tab === 'blind' && (
-          <div className="placeholder">
-            <p className="placeholder-title">{TABS.find((t) => t.id === tab).label}</p>
-            <p>준비 중이에요</p>
-          </div>
-        )}
+        {tab === 'blind' && <Blindspots />}
       </main>
       <nav className="tabbar">
         {TABS.map((t) => (
