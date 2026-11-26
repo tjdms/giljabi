@@ -132,6 +132,48 @@ def share_with_road(edges, raw_ind, polygon):
     print(f"[인도·횡단보도] {is_share.sum()}구간 중 {len(pair)}구간이 {SHARE_MAX_DIST}m 안 차도와 짝지어짐")
 
 
+# ── 공공데이터가 없는 사유지·공원 구역 표시 (점수는 그대로) ──────────
+# 아파트 단지·캠퍼스·학교 안 시설(CCTV·조명)은 사유지라 공공데이터에 없어서 점수가 낮게 나옴.
+# 구간 중간점이 들어가는 구역을 area_type으로 붙이고, 겹치면 AREA_PRIORITY 순서로 정함
+AREA_PRIORITY = ["campus", "school", "apartment", "park"]
+NO_BLINDSPOT_AREAS = {"apartment", "campus", "school"}   # 사각지대 목록에서 뺄 구역
+
+
+def osm_polygons(polygon, tags):
+    try:
+        f = ox.features_from_polygon(polygon, tags=tags)
+    except ox._errors.InsufficientResponseError:   # 해당 태그 없음
+        return gpd.GeoSeries([], crs="EPSG:4326")
+    return f[f.geom_type.isin(["Polygon", "MultiPolygon"])].geometry
+
+
+def tag_areas(edges, polygon):
+    residential = osm_polygons(polygon, {"landuse": "residential"})
+    apt_buildings = ox.features_from_polygon(polygon, tags={"building": "apartments"}).geometry
+    # 아파트 건물이 하나라도 들어 있는 주거지역 = 아파트 단지
+    has_apt = residential.apply(lambda g: apt_buildings.intersects(g).any()) if len(residential) else residential
+    areas = {
+        "campus": osm_polygons(polygon, {"amenity": ["university", "college"]}),
+        "school": osm_polygons(polygon, {"amenity": "school"}),
+        "apartment": residential[has_apt] if len(residential) else residential,
+        "park": osm_polygons(polygon, {"leisure": "park"}),
+    }
+    mid = edges.geometry.interpolate(0.5, normalized=True)
+    edges["area_type"] = None
+    for kind in reversed(AREA_PRIORITY):   # 우선순위 높은 것이 마지막에 덮어씀
+        shapes = areas[kind]
+        if len(shapes):
+            inside = mid.within(shapes.to_crs(CRS_M).union_all())
+            edges.loc[inside, "area_type"] = kind
+        print(f"[구역] {kind}: 폴리곤 {len(shapes)}개")
+    edges["no_public_data"] = edges["area_type"].notna()
+    edges["blindspot_exclude"] = edges["area_type"].isin(NO_BLINDSPOT_AREAS)
+    share = edges.groupby(edges["area_type"].fillna("(없음)"))["length"].agg(["size", "sum"])
+    share["구간 비율"] = (share["size"] / len(edges)).map("{:.1%}".format)
+    share["길이 비율"] = (share["sum"] / edges["length"].sum()).map("{:.1%}".format)
+    print(share[["size", "구간 비율", "길이 비율"]].to_string())
+
+
 # ── 경사도 (노트북 ⑤)────────────────────────────────────────
 def slope_grade(nodes, edges):
     dem_path = CLEAN / INDICATORS["slope"]["file"]
@@ -193,12 +235,12 @@ def sensitivity(raw_ind, edges, paper_w):
 
 # ── 결과 저장 (노트북 ⑩, CLAUDE.md 출력 형식) ────────────────
 def save_edges(edges):
-    out = edges[["length", "safety", "grade", "cost", "geometry"]].reset_index().to_crs("EPSG:4326")
+    out = edges[["length", "safety", "grade", "cost", "area_type", "no_public_data", "blindspot_exclude", "geometry"]].reset_index().to_crs("EPSG:4326")
     out["score"] = (out["safety"] * 100).round().astype(int)
     out["length"] = out["length"].round(2)
     out["safety"] = out["safety"].round(4)
     out["cost"] = out["cost"].round(2)
-    out = out[["u", "v", "length", "safety", "score", "grade", "cost", "geometry"]]
+    out = out[["u", "v", "length", "safety", "score", "grade", "cost", "area_type", "no_public_data", "blindspot_exclude", "geometry"]]
     path = OUT / "edges_scored.geojson"
     out.to_file(path, driver="GeoJSON", COORDINATE_PRECISION=6)
     print("저장:", path.relative_to(ROOT), "/", len(out), "구간")
@@ -258,6 +300,7 @@ def main():
         if v is not None:
             raw_ind[key] = v
     share_with_road(edges, raw_ind, polygon)
+    tag_areas(edges, polygon)
     s = slope_grade(nodes, edges)
     if s is not None:
         raw_ind["slope"] = s
