@@ -50,10 +50,11 @@ src/                 앱 코드
 - 정규화: 상위 5% 잘라서 min-max → 가중합 = safety(0~1) → 5분위 등급
 - risk = 1 − safety, cost = length × (1 + risk)
 - 출력 `public/data/edges_scored.geojson`: 구간 LineString, 속성 u, v, length, safety, score(=safety×100 반올림), grade(1~5), cost
-  - area_type(apartment/campus/school/park 또는 null), no_public_data(area_type 있으면 true), blindspot_exclude(apartment/campus/school이면 true)
+  - area_type(apartment/campus/school/park 또는 null), no_public_data(area_type 있으면 true), blindspot_exclude(outside_namgu/apartment/campus/school이면 true)
   - paired_highway(인도·횡단보도가 짝지어진 차도 종류), streetlight_missing(큰길 trunk~tertiary·_link 또는 그 옆에 짝지어진 인도·횡단보도면 true: 보안등 데이터에 가로등이 없어 점수가 낮게 나옴)
   - highway(OSM 도로 종류), name(OSM 도로 이름, 없으면 null — 약 35%만 있음), usage(이용 빈도: 무작위 출발·도착 1,000쌍(직선 300m~2km, 시드 20261126)의 최단 경로가 지나간 횟수, 양방향 합산)
-  - 구역: OSM landuse=residential 중 building=apartments가 들어 있는 영역 = apartment, amenity=university/college = campus, amenity=school = school, leisure=park = park. 구간 중간점 기준, 겹치면 campus > school > apartment > park
+  - 구역: OSM 남구 행정경계(relation 4068408) 밖 = outside_namgu, landuse=residential 중 building=apartments가 들어 있는 영역 = apartment, amenity=university/college = campus, amenity=school = school, leisure=park = park. 구간 중간점 기준, 겹치면 outside_namgu > campus > school > apartment > park
+  - 남구 밖: 보안등·CCTV·상가 데이터가 남구 것만 있어서 분석 범위 중 수영구 쪽 등은 시설이 없는 것처럼 나옴 (구간 11.6%)
   - 아파트·캠퍼스·학교 안 시설(CCTV·조명)은 사유지라 공공데이터에 없음 → 점수는 그대로 두고 지도·경로에서 따로 처리
 - 출력 `public/data/facilities.geojson`: cctv, bell, police, store 점 데이터 (type 속성 포함)
 - 출력 `public/data/meta.json`: 데이터별 기준일·출처 (보안등·CCTV·상가·비상벨·지구대·편의점) + 도로망 받은 날짜 — 범례 표시용

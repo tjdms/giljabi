@@ -152,8 +152,10 @@ def share_with_road(edges, raw_ind, polygon):
 # ── 공공데이터가 없는 사유지·공원 구역 표시 (점수는 그대로) ──────────
 # 아파트 단지·캠퍼스·학교 안 시설(CCTV·조명)은 사유지라 공공데이터에 없어서 점수가 낮게 나옴.
 # 구간 중간점이 들어가는 구역을 area_type으로 붙이고, 겹치면 AREA_PRIORITY 순서로 정함
-AREA_PRIORITY = ["campus", "school", "apartment", "park"]
-NO_BLINDSPOT_AREAS = {"apartment", "campus", "school"}   # 사각지대 목록에서 뺄 구역
+# 남구 밖(outside_namgu): 보안등·CCTV·상가 데이터가 남구 것만 있어서 분석 범위 중 수영구 쪽 등은 시설이 없는 것처럼 나옴
+AREA_PRIORITY = ["outside_namgu", "campus", "school", "apartment", "park"]
+NO_BLINDSPOT_AREAS = {"outside_namgu", "apartment", "campus", "school"}   # 사각지대 목록에서 뺄 구역
+DATA_AREA_QUERY = "부산광역시 남구"   # 데이터가 있는 행정구역 (OSM 행정경계)
 
 
 def osm_polygons(polygon, tags, with_names=False):
@@ -214,6 +216,12 @@ def tag_areas(edges, polygon):
     mid = edges.geometry.interpolate(0.5, normalized=True)
     edges["area_type"] = None
     for kind in reversed(AREA_PRIORITY):   # 우선순위 높은 것이 마지막에 덮어씀
+        if kind == "outside_namgu":
+            boundary = ox.geocode_to_gdf(DATA_AREA_QUERY)
+            outside = ~mid.within(boundary.to_crs(CRS_M).geometry.iloc[0])
+            edges.loc[outside, "area_type"] = kind
+            print(f"[구역] {kind}: 경계 '{boundary.iloc[0]['display_name']}' (OSM {boundary.iloc[0]['osm_type']} {boundary.iloc[0]['osm_id']})")
+            continue
         shapes = areas[kind]
         if len(shapes):
             inside = mid.within(shapes.to_crs(CRS_M).union_all())
