@@ -330,15 +330,17 @@ def sensitivity(raw_ind, edges, paper_w):
 
 # ── 결과 저장 (노트북 ⑩, CLAUDE.md 출력 형식) ────────────────
 def save_edges(edges):
-    out = edges[["length", "safety", "grade", "cost", "area_type", "no_public_data", "blindspot_exclude", "usage",
+    norm_cols = [f"{k}_n" for k in INDICATORS if f"{k}_n" in edges]   # 데이터가 없어 건너뛴 지표는 빠짐
+    out = edges[["length", "safety", *norm_cols, "grade", "cost", "area_type", "no_public_data", "blindspot_exclude", "usage",
                  "paired_highway", "streetlight_missing", "geometry"]].reset_index().to_crs("EPSG:4326")
+    out[norm_cols] = out[norm_cols].round(4)
     out["highway"] = edges["highway"].apply(first_tag).to_numpy()
     out["name"] = edges["name"].apply(first_tag).to_numpy() if "name" in edges else None   # 도로 이름 (없으면 null)
     out["score"] = (out["safety"] * 100).round().astype(int)
     out["length"] = out["length"].round(2)
     out["safety"] = out["safety"].round(4)
     out["cost"] = out["cost"].round(2)
-    out = out[["u", "v", "length", "safety", "score", "grade", "cost", "highway", "name", "paired_highway", "streetlight_missing",
+    out = out[["u", "v", "length", "safety", *norm_cols, "score", "grade", "cost", "highway", "name", "paired_highway", "streetlight_missing",
                "area_type", "no_public_data", "blindspot_exclude", "usage", "geometry"]]
     path = OUT / "edges_scored.geojson"
     out.to_file(path, driver="GeoJSON", COORDINATE_PRECISION=6)
@@ -408,6 +410,9 @@ def main():
 
     paper_w = {k: c["w"] for k, c in INDICATORS.items()}
     edges["safety"], used_w = safety_score(raw_ind, paper_w)
+    # 지표별 정규화 값 (0~1, 클수록 안전 방향 — slope_n은 평평할수록 1). safety = Σ 적용 가중치 × 지표_n
+    for k in raw_ind:
+        edges[f"{k}_n"] = normalize(raw_ind[k], INDICATORS[k]["higher_is_safer"])
     edges["risk"] = 1 - edges["safety"]
     edges["cost"] = edges["length"] * (1 + edges["risk"])
     edges["grade"] = to_grade(edges["safety"])

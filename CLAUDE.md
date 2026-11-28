@@ -50,6 +50,8 @@ src/                 앱 코드
 - 정규화: 상위 5% 잘라서 min-max → 가중합 = safety(0~1) → 5분위 등급
 - risk = 1 − safety, cost = length × (1 + risk)
 - 출력 `public/data/edges_scored.geojson`: 구간 LineString, 속성 u, v, length, safety, score(=safety×100 반올림), grade(1~5), cost
+  - light_n, cctv_n, shop_n, slope_n: 지표별 정규화 값(0~1, 클수록 안전 방향, slope_n은 평평할수록 1). safety = 0.414·light_n + 0.356·cctv_n + 0.168·shop_n + 0.062·slope_n (반올림 오차 0.0001 이하)
+  - 불리언(no_public_data, blindspot_exclude, streetlight_missing)은 JSON true/false
   - area_type(apartment/campus/school/park 또는 null), no_public_data(area_type 있으면 true), blindspot_exclude(outside_namgu/apartment/campus/school이면 true)
   - paired_highway(인도·횡단보도가 짝지어진 차도 종류), streetlight_missing(큰길 trunk~tertiary·_link 또는 그 옆에 짝지어진 인도·횡단보도면 true: 보안등 데이터에 가로등이 없어 점수가 낮게 나옴)
   - highway(OSM 도로 종류), name(OSM 도로 이름, 없으면 null — 약 35%만 있음), usage(이용 빈도: 무작위 출발·도착 1,000쌍(직선 300m~2km, 시드 20261126)의 최단 경로가 지나간 횟수, 양방향 합산)
